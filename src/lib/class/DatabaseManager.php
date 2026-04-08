@@ -62,4 +62,9 @@ class DatabaseManager
     {
         $this->query($sql, $args);
     }
+
+    public function getPdo(): PDO
+    {
+        return $this->pdo;
+    }
 }

@@ -143,20 +143,27 @@ class DatabaseMigrator
 
         echo "→ Executing: {$filename}...";
 
+        $sql = file_get_contents($filepath);
+
+        if (empty(trim($sql))) {
+            echo " [SKIPPED - Empty file]\n";
+            return;
+        }
+
+        // Split by semicolon to handle multiple statements
+        $statements = array_filter(
+            array_map('trim', explode(';', $sql)),
+            fn($stmt) => !empty($stmt)
+        );
+
+        $pdo = $this->db->getPdo();
+
+        // Note: MySQL DDL (CREATE TABLE, ALTER TABLE) causes implicit commits and
+        // cannot be rolled back. Transactions here protect DML (INSERT/UPDATE/DELETE)
+        // statements. Migrations should be written to be idempotent (IF NOT EXISTS,
+        // INSERT IGNORE) so they are safe to re-run after a partial failure.
+        $pdo->beginTransaction();
         try {
-            $sql = file_get_contents($filepath);
-
-            if (empty(trim($sql))) {
-                echo " [SKIPPED - Empty file]\n";
-                return;
-            }
-
-            // Split by semicolon to handle multiple statements
-            $statements = array_filter(
-                array_map('trim', explode(';', $sql)),
-                fn($stmt) => !empty($stmt)
-            );
-
             foreach ($statements as $statement) {
                 $this->db->exec($statement);
             }
@@ -167,8 +174,12 @@ class DatabaseMigrator
                 [$filename]
             );
 
+            $pdo->commit();
             echo " [SUCCESS]\n";
         } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             echo " [FAILED]\n";
             echo "Error: " . $e->getMessage() . "\n";
             exit(1);

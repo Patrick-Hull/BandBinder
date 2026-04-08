@@ -3,4 +3,4 @@
 -- so the split modal can restore selections when re-opened.
 
 ALTER TABLE `chart__pdf_parts`
-    ADD COLUMN `pages` JSON NULL AFTER `pdfPath`;
+    ADD COLUMN IF NOT EXISTS `pages` JSON NULL AFTER `pdfPath`;
