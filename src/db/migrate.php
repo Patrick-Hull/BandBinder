@@ -156,9 +156,30 @@ class DatabaseMigrator
             fn($stmt) => !empty($stmt)
         );
 
+        // MySQL error codes that mean "already exists" — safe to skip on re-run
+        $ignorableCodes = [
+            1060, // Duplicate column name (ADD COLUMN on existing column)
+            1061, // Duplicate key name (ADD INDEX on existing index)
+            1050, // Table already exists (CREATE TABLE without IF NOT EXISTS)
+        ];
+
         try {
             foreach ($statements as $statement) {
-                $this->db->exec($statement);
+                try {
+                    $this->db->exec($statement);
+                } catch (Exception $e) {
+                    $code = (int)$e->getCode();
+                    // PDO wraps the driver error; extract MySQL error number from message if needed
+                    if (!in_array($code, $ignorableCodes)) {
+                        preg_match('/\b(\d{4})\b/', $e->getMessage(), $m);
+                        $code = isset($m[1]) ? (int)$m[1] : $code;
+                    }
+                    if (in_array($code, $ignorableCodes)) {
+                        echo "\n  [SKIP] Already applied: " . trim(substr($statement, 0, 80)) . "...";
+                    } else {
+                        throw $e;
+                    }
+                }
             }
 
             // Record migration as executed

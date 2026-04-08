@@ -3,7 +3,7 @@
 
 -- Duration in seconds (e.g. 210 = 3:30)
 ALTER TABLE `charts`
-    ADD COLUMN IF NOT EXISTS `duration` SMALLINT UNSIGNED NULL AFTER `bpm`;
+    ADD COLUMN `duration` SMALLINT UNSIGNED NULL AFTER `bpm`;
 
 -- Setlists
 CREATE TABLE IF NOT EXISTS `setlists` (

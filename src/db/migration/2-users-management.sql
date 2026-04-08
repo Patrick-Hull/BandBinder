@@ -1,8 +1,7 @@
 -- Add name columns to users table (IF NOT EXISTS prevents failure on re-run)
-ALTER TABLE `users`
-    ADD COLUMN IF NOT EXISTS `nameShort` VARCHAR(50)  NULL AFTER `email`,
-    ADD COLUMN IF NOT EXISTS `nameFirst` VARCHAR(100) NULL AFTER `nameShort`,
-    ADD COLUMN IF NOT EXISTS `nameLast`  VARCHAR(100) NULL AFTER `nameFirst`;
+ALTER TABLE `users` ADD COLUMN `nameShort` VARCHAR(50)  NULL AFTER `email`;
+ALTER TABLE `users` ADD COLUMN `nameFirst` VARCHAR(100) NULL AFTER `nameShort`;
+ALTER TABLE `users` ADD COLUMN `nameLast`  VARCHAR(100) NULL AFTER `nameFirst`;
 
 -- Backfill existing users: set nameShort = username where null
 UPDATE `users` SET `nameShort` = `username` WHERE `nameShort` IS NULL;
