@@ -73,6 +73,7 @@ switch ($action) {
                 'chartKey'           => $chart->getChartKey() ?? '',
                 'notes'              => $chart->getNotes()    ?? '',
                 'myPdfPath'          => $myPdfPath,
+                'audioPath'          => $chart->getAudioPath() ?? '',
                 'myRating'           => $myFields['starRating']       ?? null,
                 'myPrivateNotes'     => $myFields['privateNotes']     ?? '',
                 'myInstrumentNotes'  => $myFields['instrumentNotes']  ?? '',

@@ -38,7 +38,7 @@ function resolvePdf(string $idChart, array $instrumentIds, DatabaseManager $db):
 
 // ── Recently added charts (last 8) ───────────────────────────────────────────
 $recentCharts = $db->query(
-    "SELECT c.idChart, c.chartName, c.bpm, c.duration, c.chartKey, c.created_at,
+    "SELECT c.idChart, c.chartName, c.bpm, c.duration, c.chartKey, c.created_at, c.audioPath,
             COALESCE(ar.arrangerName, a.artistName, '') AS displayName
      FROM `charts` c
      LEFT JOIN `artists`   a  ON a.idArtist   = c.idArtist
@@ -171,14 +171,26 @@ function fmtDur(?int $secs): string {
                                 <td class="text-center"><?php echo htmlspecialchars((string)($chart['bpm'] ?? '')); ?></td>
                                 <td class="text-center text-muted"><?php echo $dur; ?></td>
                                 <td class="text-center">
+                                    <div class="d-flex gap-1 justify-content-center">
                                     <?php if ($pdf): ?>
                                         <a href="<?php echo htmlspecialchars($pdf); ?>" target="_blank"
                                            class="btn btn-sm btn-outline-danger py-0 px-1" title="Open PDF">
                                             <i class="bi bi-file-earmark-pdf"></i>
                                         </a>
-                                    <?php else: ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($chart['audioPath'])): ?>
+                                        <button class="btn btn-sm btn-outline-success py-0 px-1 dash-play-audio-btn"
+                                                title="Play Audio"
+                                                data-src="<?php echo htmlspecialchars($chart['audioPath']); ?>"
+                                                data-title="<?php echo htmlspecialchars($chart['chartName']); ?>"
+                                                data-subtitle="<?php echo htmlspecialchars($chart['displayName']); ?>">
+                                            <i class="bi bi-music-note-beamed"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                    <?php if (!$pdf && empty($chart['audioPath'])): ?>
                                         <span class="text-muted small">—</span>
                                     <?php endif; ?>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -277,5 +289,117 @@ function fmtDur(?int $secs): string {
 </div>
 
 <?php require_once __DIR__ . '/../lib/html_footer/all.php'; ?>
+
+<!-- Audio Player Modal -->
+<div class="modal fade" id="dashAudioPlayerModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <div class="fw-semibold" id="dashAudioChartName"></div>
+                    <div class="text-muted small" id="dashAudioArtistName"></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <audio id="dashAudioEl" src="" preload="metadata" style="display:none"></audio>
+                <div class="audio-player-bar mb-3" id="dashAudioSeekBar">
+                    <div class="audio-player-progress" id="dashAudioProgress"></div>
+                    <div class="audio-player-handle" id="dashAudioHandle"></div>
+                </div>
+                <div class="d-flex justify-content-between text-muted small mb-3 px-1">
+                    <span id="dashAudioCurrent">0:00</span>
+                    <span id="dashAudioDuration">0:00</span>
+                </div>
+                <div class="d-flex align-items-center justify-content-center gap-3">
+                    <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="dashAudioSkipBack" title="Back 10s">
+                        <i class="bi bi-skip-backward-fill"></i>
+                    </button>
+                    <button class="btn btn-primary audio-play-btn" id="dashAudioPlayBtn">
+                        <i class="bi bi-play-fill fs-5"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="dashAudioSkipFwd" title="Forward 10s">
+                        <i class="bi bi-skip-forward-fill"></i>
+                    </button>
+                </div>
+                <div class="d-flex align-items-center gap-2 mt-3 px-1">
+                    <i class="bi bi-volume-down text-muted"></i>
+                    <input type="range" class="form-range flex-grow-1" id="dashAudioVolume" min="0" max="1" step="0.05" value="1">
+                    <i class="bi bi-volume-up text-muted"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .audio-player-bar {
+        position: relative; height: 6px;
+        background: var(--bs-border-color, #dee2e6);
+        border-radius: 3px; cursor: pointer;
+    }
+    .audio-player-progress { height: 100%; background: #0d6efd; border-radius: 3px; width: 0%; transition: width .1s linear; }
+    .audio-player-handle {
+        position: absolute; top: 50%; left: 0%;
+        transform: translate(-50%, -50%);
+        width: 14px; height: 14px; border-radius: 50%;
+        background: #0d6efd; box-shadow: 0 0 0 3px rgba(13,110,253,.25);
+        transition: left .1s linear;
+    }
+    .audio-play-btn { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; }
+    .audio-ctrl-btn { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; }
+</style>
+
+<script>
+(function () {
+    const el = document.getElementById('dashAudioEl');
+
+    function fmt(s) {
+        if (isNaN(s) || !isFinite(s)) return '0:00';
+        return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    }
+
+    el.addEventListener('loadedmetadata', () => { document.getElementById('dashAudioDuration').textContent = fmt(el.duration); });
+    el.addEventListener('timeupdate', () => {
+        const pct = el.duration ? el.currentTime / el.duration * 100 : 0;
+        document.getElementById('dashAudioProgress').style.width = pct + '%';
+        document.getElementById('dashAudioHandle').style.left = pct + '%';
+        document.getElementById('dashAudioCurrent').textContent = fmt(el.currentTime);
+    });
+    el.addEventListener('ended', () => { document.getElementById('dashAudioPlayBtn').innerHTML = '<i class="bi bi-play-fill fs-5"></i>'; });
+
+    document.getElementById('dashAudioPlayBtn').addEventListener('click', function () {
+        if (el.paused) { el.play(); this.innerHTML = '<i class="bi bi-pause-fill fs-5"></i>'; }
+        else           { el.pause(); this.innerHTML = '<i class="bi bi-play-fill fs-5"></i>'; }
+    });
+    document.getElementById('dashAudioSkipBack').addEventListener('click', () => { el.currentTime = Math.max(0, el.currentTime - 10); });
+    document.getElementById('dashAudioSkipFwd').addEventListener('click',  () => { el.currentTime = Math.min(el.duration || 0, el.currentTime + 10); });
+    document.getElementById('dashAudioVolume').addEventListener('input',   function () { el.volume = this.value; });
+    document.getElementById('dashAudioSeekBar').addEventListener('click',  function (e) {
+        if (!el.duration) return;
+        el.currentTime = (e.clientX - this.getBoundingClientRect().left) / this.offsetWidth * el.duration;
+    });
+
+    document.getElementById('dashAudioPlayerModal').addEventListener('hidden.bs.modal', function () {
+        el.pause(); el.src = '';
+        document.getElementById('dashAudioPlayBtn').innerHTML = '<i class="bi bi-play-fill fs-5"></i>';
+        document.getElementById('dashAudioProgress').style.width = '0%';
+        document.getElementById('dashAudioHandle').style.left = '0%';
+        document.getElementById('dashAudioCurrent').textContent = '0:00';
+        document.getElementById('dashAudioDuration').textContent = '0:00';
+    });
+
+    document.querySelectorAll('.dash-play-audio-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('dashAudioChartName').textContent  = this.dataset.title    || '';
+            document.getElementById('dashAudioArtistName').textContent = this.dataset.subtitle || '';
+            el.src = this.dataset.src;
+            el.load();
+            document.getElementById('dashAudioPlayBtn').innerHTML = '<i class="bi bi-play-fill fs-5"></i>';
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('dashAudioPlayerModal')).show();
+        });
+    });
+})();
+</script>
 </body>
 </html>

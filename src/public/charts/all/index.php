@@ -203,6 +203,26 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <input type="file" class="form-control" id="editChartPdf" accept=".pdf">
                         <div class="form-text">Uploading a new PDF will replace the existing master PDF.</div>
                     </div>
+
+                    <!-- Audio section -->
+                    <hr>
+                    <h6>Audio File</h6>
+                    <div id="editCurrentAudioSection" class="mb-2 d-none">
+                        <span class="text-muted small me-2"><i class="bi bi-music-note-beamed me-1"></i><span id="editCurrentAudioName"></span></span>
+                        <button type="button" class="btn btn-sm btn-outline-danger" id="deleteAudioBtn">
+                            <i class="bi bi-trash"></i> Remove Audio
+                        </button>
+                    </div>
+                    <div class="mb-3">
+                        <label for="editChartAudio" class="form-label">Upload Audio File</label>
+                        <input type="file" class="form-control" id="editChartAudio" accept=".mp3,.wav,.ogg,.m4a,.flac,.aac">
+                        <div class="form-text">Supported: MP3, WAV, OGG, M4A, FLAC, AAC.</div>
+                    </div>
+                    <div id="audioUploadProgress" class="d-none mb-2">
+                        <div class="progress" style="height:6px">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
@@ -288,6 +308,105 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         AUDIO PLAYER MODAL
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="audioPlayerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <div class="fw-semibold" id="audioPlayerChartName"></div>
+                        <div class="text-muted small" id="audioPlayerArtistName"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-2">
+                    <audio id="audioPlayerEl" src="" preload="metadata" style="display:none"></audio>
+
+                    <!-- Waveform-style progress bar -->
+                    <div class="audio-player-bar mb-3" id="audioSeekBar">
+                        <div class="audio-player-progress" id="audioProgress"></div>
+                        <div class="audio-player-handle" id="audioHandle"></div>
+                    </div>
+
+                    <!-- Time -->
+                    <div class="d-flex justify-content-between text-muted small mb-3 px-1">
+                        <span id="audioCurrent">0:00</span>
+                        <span id="audioDuration">0:00</span>
+                    </div>
+
+                    <!-- Controls -->
+                    <div class="d-flex align-items-center justify-content-center gap-3">
+                        <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="audioSkipBack" title="Back 10s">
+                            <i class="bi bi-skip-backward-fill"></i>
+                        </button>
+                        <button class="btn btn-primary audio-play-btn" id="audioPlayBtn" title="Play/Pause">
+                            <i class="bi bi-play-fill fs-5"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="audioSkipFwd" title="Forward 10s">
+                            <i class="bi bi-skip-forward-fill"></i>
+                        </button>
+                    </div>
+
+                    <!-- Volume -->
+                    <div class="d-flex align-items-center gap-2 mt-3 px-1">
+                        <i class="bi bi-volume-down text-muted"></i>
+                        <input type="range" class="form-range flex-grow-1" id="audioVolume" min="0" max="1" step="0.05" value="1">
+                        <i class="bi bi-volume-up text-muted"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .audio-player-bar {
+            position: relative;
+            height: 6px;
+            background: var(--bs-border-color, #dee2e6);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .audio-player-progress {
+            height: 100%;
+            background: #0d6efd;
+            border-radius: 3px;
+            width: 0%;
+            transition: width .1s linear;
+        }
+        .audio-player-handle {
+            position: absolute;
+            top: 50%;
+            left: 0%;
+            transform: translate(-50%, -50%);
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #0d6efd;
+            box-shadow: 0 0 0 3px rgba(13,110,253,.25);
+            transition: left .1s linear;
+        }
+        .audio-play-btn {
+            width: 52px;
+            height: 52px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+        .audio-ctrl-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+    </style>
+
     <script>
         const canCreate        = <?= json_encode($canCreate) ?>;
         const canEdit          = <?= json_encode($canEdit) ?>;
@@ -342,6 +461,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {data: 'duration',     title: 'Duration', render: function(d) { return d ? Math.floor(d/60)+':'+String(d%60).padStart(2,'0') : ''; }},
                     {data: 'chartKey',     title: 'Key'},
                     {data: 'hasPdf',       title: 'PDF', render: function(d) { return d ? '<i class="bi bi-file-earmark-pdf text-danger"></i>' : ''; }},
+                    {data: null, title: '', defaultContent: '', render: function(d, t, row) {
+                        let html = '';
+                        if (row.audioPath) {
+                            html += `<button class="btn btn-sm btn-outline-success play-audio-btn" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
+                        }
+                        return html;
+                    }},
                 ];
                 const columnDefs = [
                     {targets: 0, orderable: true, searchable: true},
@@ -351,12 +477,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {targets: 4, orderable: false, searchable: false},
                     {targets: 5, orderable: true, searchable: true},
                     {targets: 6, orderable: false, searchable: false},
+                    {targets: 7, orderable: false, searchable: false},
                 ];
 
                 if (canEdit || canDelete) {
                     columns.push({data: null, defaultContent: ''});
                     columnDefs.push({
-                        targets: 7,
+                        targets: 8,
                         orderable: false,
                         searchable: false,
                         title: '',
@@ -514,12 +641,22 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             $('#editChartKey').val(row.chartKey || '');
             $('#editChartNotes').val(row.notes || '');
             $('#editChartPdf').val('');
+            $('#editChartAudio').val('');
+            $('#audioUploadProgress').addClass('d-none');
 
             if (row.pdfPath) {
                 $('#editCurrentPdfSection').removeClass('d-none');
                 $('#editCurrentPdfLink').attr('href', row.pdfPath);
             } else {
                 $('#editCurrentPdfSection').addClass('d-none');
+            }
+
+            if (row.audioPath) {
+                $('#editCurrentAudioSection').removeClass('d-none');
+                const fname = row.audioPath.split('/').pop();
+                $('#editCurrentAudioName').text(fname);
+            } else {
+                $('#editCurrentAudioSection').addClass('d-none');
             }
 
             if (editArtistTs)  { editArtistTs.destroy();  editArtistTs = null; }
@@ -590,6 +727,126 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 error: ajaxErrorHandler
             });
         });
+
+        // ── Audio upload (inside edit modal) ─────────────────────
+        $('#editChartAudio').on('change', function () {
+            const file = this.files[0];
+            if (!file) return;
+            const idChart = $('#editChartId').val();
+            if (!idChart) return;
+
+            const fd = new FormData();
+            fd.append('action',    'uploadChartAudio');
+            fd.append('idChart',   idChart);
+            fd.append('audioFile', file);
+
+            $('#audioUploadProgress').removeClass('d-none');
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: fd, processData: false, contentType: false,
+                dataType: 'JSON',
+                success: function (r) {
+                    $('#audioUploadProgress').addClass('d-none');
+                    $('#editCurrentAudioSection').removeClass('d-none');
+                    $('#editCurrentAudioName').text(r.audioPath.split('/').pop());
+                    // Update in-memory row so the table reflects change without full reload
+                    if (currentEditRow) currentEditRow.audioPath = r.audioPath;
+                    fetchData();
+                    toastr.success('Audio uploaded.');
+                },
+                error: function (xhr) {
+                    $('#audioUploadProgress').addClass('d-none');
+                    ajaxErrorHandler(xhr);
+                }
+            });
+        });
+
+        $('#deleteAudioBtn').on('click', function () {
+            const idChart = $('#editChartId').val();
+            if (!idChart) return;
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: {action: 'deleteChartAudio', idChart: idChart},
+                dataType: 'JSON',
+                success: function () {
+                    $('#editCurrentAudioSection').addClass('d-none');
+                    $('#editChartAudio').val('');
+                    if (currentEditRow) currentEditRow.audioPath = '';
+                    fetchData();
+                    toastr.success('Audio removed.');
+                },
+                error: ajaxErrorHandler
+            });
+        });
+
+        // ── Audio player modal ────────────────────────────────────
+        const audioEl = document.getElementById('audioPlayerEl');
+
+        function fmtTime(s) {
+            if (isNaN(s) || !isFinite(s)) return '0:00';
+            return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+        }
+
+        function updateSeekUI() {
+            const pct = audioEl.duration ? (audioEl.currentTime / audioEl.duration * 100) : 0;
+            $('#audioProgress').css('width', pct + '%');
+            $('#audioHandle').css('left', pct + '%');
+            $('#audioCurrent').text(fmtTime(audioEl.currentTime));
+        }
+
+        audioEl.addEventListener('loadedmetadata', function () {
+            $('#audioDuration').text(fmtTime(audioEl.duration));
+            updateSeekUI();
+        });
+        audioEl.addEventListener('timeupdate', updateSeekUI);
+        audioEl.addEventListener('ended', function () {
+            $('#audioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+        });
+
+        $('#audioPlayBtn').on('click', function () {
+            if (audioEl.paused) {
+                audioEl.play();
+                $(this).find('i').removeClass('bi-play-fill').addClass('bi-pause-fill');
+            } else {
+                audioEl.pause();
+                $(this).find('i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            }
+        });
+
+        $('#audioSkipBack').on('click', function () { audioEl.currentTime = Math.max(0, audioEl.currentTime - 10); });
+        $('#audioSkipFwd').on('click', function ()  { audioEl.currentTime = Math.min(audioEl.duration || 0, audioEl.currentTime + 10); });
+        $('#audioVolume').on('input', function () { audioEl.volume = this.value; });
+
+        $('#audioSeekBar').on('click', function (e) {
+            if (!audioEl.duration) return;
+            const rect = this.getBoundingClientRect();
+            const pct  = (e.clientX - rect.left) / rect.width;
+            audioEl.currentTime = pct * audioEl.duration;
+        });
+
+        $('#audioPlayerModal').on('hidden.bs.modal', function () {
+            audioEl.pause();
+            audioEl.src = '';
+            $('#audioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            $('#audioProgress').css('width', '0%');
+            $('#audioHandle').css('left', '0%');
+            $('#audioCurrent').text('0:00');
+            $('#audioDuration').text('0:00');
+        });
+
+        $('#chartTable').on('click', '.play-audio-btn', function () {
+            const row = table.row($(this).closest('tr')).data();
+            openAudioPlayer(row.audioPath, row.chartName, row.artistName || row.arrangerName || '');
+        });
+
+        function openAudioPlayer(src, title, subtitle) {
+            $('#audioPlayerChartName').text(title);
+            $('#audioPlayerArtistName').text(subtitle);
+            audioEl.src = src;
+            audioEl.load();
+            $('#audioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('audioPlayerModal')).show();
+        }
 
         // ── Manage PDFs Modal ─────────────────────────────────────
         // PDF.js setup

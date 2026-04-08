@@ -173,6 +173,8 @@ switch ($action) {
                 'notes'        => $row['notes']        ?? '',
                 'pdfPath'      => $row['pdfPath']      ?? '',
                 'hasPdf'       => !empty($row['pdfPath']),
+                'audioPath'    => $row['audioPath']    ?? '',
+                'hasAudio'     => !empty($row['audioPath']),
             ];
         }
         http_response_code(200);
@@ -411,6 +413,74 @@ switch ($action) {
         }
         http_response_code(200);
         echo json_encode(['success' => true, 'count' => $count, 'results' => $results]);
+        break;
+
+    // ── Upload audio file ─────────────────────────────────────────────────────
+    case 'uploadChartAudio':
+        if (!in_array('charts.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        if (!isset($_FILES['audioFile']) || $_FILES['audioFile']['error'] === UPLOAD_ERR_NO_FILE) {
+            http_response_code(400); echo json_encode(['message' => 'No file uploaded']); exit;
+        }
+        $file = $_FILES['audioFile'];
+        if ($file['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400); echo json_encode(['message' => 'Upload error code ' . $file['error']]); exit;
+        }
+        $allowedExts  = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'];
+        $allowedMimes = ['audio/mpeg', 'audio/wav', 'audio/wave', 'audio/ogg', 'audio/mp4', 'audio/x-m4a',
+                         'audio/flac', 'audio/x-flac', 'audio/aac', 'video/mp4', 'application/octet-stream'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        if (!in_array($ext, $allowedExts)) {
+            http_response_code(400); echo json_encode(['message' => 'Unsupported audio format. Allowed: ' . implode(', ', $allowedExts)]); exit;
+        }
+        try {
+            $dir  = ensureChartDir($idChart);
+            // Remove any existing audio file
+            foreach ($allowedExts as $oldExt) {
+                $old = $dir . 'audio.' . $oldExt;
+                if (file_exists($old)) unlink($old);
+            }
+            $dest = $dir . 'audio.' . $ext;
+            if (!move_uploaded_file($file['tmp_name'], $dest)) {
+                throw new Exception('Failed to save audio file');
+            }
+            $audioPath = CHART_UPLOAD_URL . $idChart . '/audio.' . $ext;
+            $chart = new Chart($idChart);
+            $chart->SetAudioPath($audioPath);
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['success' => true, 'audioPath' => $audioPath]);
+        break;
+
+    // ── Delete audio file ─────────────────────────────────────────────────────
+    case 'deleteChartAudio':
+        if (!in_array('charts.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        try {
+            $chart = new Chart($idChart);
+            $chartDir = CHART_UPLOAD_DIR . $idChart . '/';
+            foreach (['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'] as $ext) {
+                $f = $chartDir . 'audio.' . $ext;
+                if (file_exists($f)) unlink($f);
+            }
+            $chart->SetAudioPath(null);
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['success' => true]);
         break;
 
     default:

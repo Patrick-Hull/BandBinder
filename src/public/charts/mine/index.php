@@ -71,11 +71,14 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         <div id="viewNotes" class="border rounded p-2 bg-light small"></div>
                     </div>
 
-                    <!-- PDF link -->
-                    <div class="mb-3" id="viewPdfSection">
+                    <!-- PDF / Audio links -->
+                    <div class="mb-3 d-flex flex-wrap gap-2" id="viewPdfSection">
                         <a id="viewPdfLink" href="#" target="_blank" class="btn btn-outline-danger">
                             <i class="bi bi-file-earmark-pdf"></i> View PDF
                         </a>
+                        <button type="button" id="viewAudioBtn" class="btn btn-outline-success d-none">
+                            <i class="bi bi-music-note-beamed me-1"></i> Play Audio
+                        </button>
                     </div>
 
                     <hr>
@@ -189,7 +192,10 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                             render: function (d, t, row) {
                                 let html = '<button class="btn btn-sm btn-outline-primary view-chart-btn me-1"><i class="bi bi-eye"></i> View</button>';
                                 if (row.myPdfPath) {
-                                    html += `<a href="${row.myPdfPath}" target="_blank" class="btn btn-sm btn-outline-danger" title="Open PDF"><i class="bi bi-file-earmark-pdf"></i></a>`;
+                                    html += `<a href="${row.myPdfPath}" target="_blank" class="btn btn-sm btn-outline-danger me-1" title="Open PDF"><i class="bi bi-file-earmark-pdf"></i></a>`;
+                                }
+                                if (row.audioPath) {
+                                    html += `<button class="btn btn-sm btn-outline-success play-audio-btn" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
                                 }
                                 return html;
                             }
@@ -224,9 +230,18 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                 $('#viewNotesSection').addClass('d-none');
             }
 
-            if (row.myPdfPath) {
-                $('#viewPdfLink').attr('href', row.myPdfPath);
+            if (row.myPdfPath || row.audioPath) {
                 $('#viewPdfSection').removeClass('d-none');
+                if (row.myPdfPath) {
+                    $('#viewPdfLink').attr('href', row.myPdfPath).removeClass('d-none');
+                } else {
+                    $('#viewPdfLink').addClass('d-none');
+                }
+                if (row.audioPath) {
+                    $('#viewAudioBtn').removeClass('d-none').data('audio-src', row.audioPath);
+                } else {
+                    $('#viewAudioBtn').addClass('d-none');
+                }
             } else {
                 $('#viewPdfSection').addClass('d-none');
             }
@@ -289,5 +304,151 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
         function escHtml(str) {
             return $('<div>').text(str || '').html();
         }
+
+        // ── Audio player ──────────────────────────────────────────
+        const myAudioEl = document.getElementById('myAudioPlayerEl');
+
+        function fmtTime(s) {
+            if (isNaN(s) || !isFinite(s)) return '0:00';
+            return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+        }
+
+        myAudioEl.addEventListener('loadedmetadata', function () {
+            $('#myAudioDuration').text(fmtTime(myAudioEl.duration));
+        });
+        myAudioEl.addEventListener('timeupdate', function () {
+            const pct = myAudioEl.duration ? (myAudioEl.currentTime / myAudioEl.duration * 100) : 0;
+            $('#myAudioProgress').css('width', pct + '%');
+            $('#myAudioHandle').css('left', pct + '%');
+            $('#myAudioCurrent').text(fmtTime(myAudioEl.currentTime));
+        });
+        myAudioEl.addEventListener('ended', function () {
+            $('#myAudioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+        });
+
+        $('#myAudioPlayBtn').on('click', function () {
+            if (myAudioEl.paused) {
+                myAudioEl.play();
+                $(this).find('i').removeClass('bi-play-fill').addClass('bi-pause-fill');
+            } else {
+                myAudioEl.pause();
+                $(this).find('i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            }
+        });
+
+        $('#myAudioSkipBack').on('click', function () { myAudioEl.currentTime = Math.max(0, myAudioEl.currentTime - 10); });
+        $('#myAudioSkipFwd').on('click', function ()  { myAudioEl.currentTime = Math.min(myAudioEl.duration || 0, myAudioEl.currentTime + 10); });
+        $('#myAudioVolume').on('input', function () { myAudioEl.volume = this.value; });
+
+        $('#myAudioSeekBar').on('click', function (e) {
+            if (!myAudioEl.duration) return;
+            const rect = this.getBoundingClientRect();
+            myAudioEl.currentTime = ((e.clientX - rect.left) / rect.width) * myAudioEl.duration;
+        });
+
+        $('#myAudioPlayerModal').on('hidden.bs.modal', function () {
+            myAudioEl.pause();
+            myAudioEl.src = '';
+            $('#myAudioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            $('#myAudioProgress').css('width', '0%');
+            $('#myAudioHandle').css('left', '0%');
+            $('#myAudioCurrent, #myAudioDuration').text('0:00');
+        });
+
+        // Table row audio button
+        $('#myChartTable').on('click', '.play-audio-btn', function () {
+            const row = table.row($(this).closest('tr')).data();
+            openMyAudioPlayer(row.audioPath, row.chartName, row.artistName || row.arrangerName || '');
+        });
+
+        // View modal audio button
+        $('#viewAudioBtn').on('click', function () {
+            const src = $(this).data('audio-src');
+            const title = $('#viewChartTitle').text();
+            const subtitle = $('#viewArtistName').text();
+            openMyAudioPlayer(src, title, subtitle);
+        });
+
+        function openMyAudioPlayer(src, title, subtitle) {
+            $('#myAudioChartName').text(title);
+            $('#myAudioArtistName').text(subtitle !== '—' ? subtitle : '');
+            myAudioEl.src = src;
+            myAudioEl.load();
+            $('#myAudioPlayBtn i').removeClass('bi-pause-fill').addClass('bi-play-fill');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('myAudioPlayerModal')).show();
+        }
     </script>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         AUDIO PLAYER MODAL
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="myAudioPlayerModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" style="max-width:480px">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <div>
+                        <div class="fw-semibold" id="myAudioChartName"></div>
+                        <div class="text-muted small" id="myAudioArtistName"></div>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body pt-2">
+                    <audio id="myAudioPlayerEl" src="" preload="metadata" style="display:none"></audio>
+                    <div class="audio-player-bar mb-3" id="myAudioSeekBar">
+                        <div class="audio-player-progress" id="myAudioProgress"></div>
+                        <div class="audio-player-handle" id="myAudioHandle"></div>
+                    </div>
+                    <div class="d-flex justify-content-between text-muted small mb-3 px-1">
+                        <span id="myAudioCurrent">0:00</span>
+                        <span id="myAudioDuration">0:00</span>
+                    </div>
+                    <div class="d-flex align-items-center justify-content-center gap-3">
+                        <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="myAudioSkipBack" title="Back 10s">
+                            <i class="bi bi-skip-backward-fill"></i>
+                        </button>
+                        <button class="btn btn-primary audio-play-btn" id="myAudioPlayBtn" title="Play/Pause">
+                            <i class="bi bi-play-fill fs-5"></i>
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm audio-ctrl-btn" id="myAudioSkipFwd" title="Forward 10s">
+                            <i class="bi bi-skip-forward-fill"></i>
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2 mt-3 px-1">
+                        <i class="bi bi-volume-down text-muted"></i>
+                        <input type="range" class="form-range flex-grow-1" id="myAudioVolume" min="0" max="1" step="0.05" value="1">
+                        <i class="bi bi-volume-up text-muted"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        .audio-player-bar {
+            position: relative; height: 6px;
+            background: var(--bs-border-color, #dee2e6);
+            border-radius: 3px; cursor: pointer;
+        }
+        .audio-player-progress {
+            height: 100%; background: #0d6efd;
+            border-radius: 3px; width: 0%;
+            transition: width .1s linear;
+        }
+        .audio-player-handle {
+            position: absolute; top: 50%; left: 0%;
+            transform: translate(-50%, -50%);
+            width: 14px; height: 14px; border-radius: 50%;
+            background: #0d6efd;
+            box-shadow: 0 0 0 3px rgba(13,110,253,.25);
+            transition: left .1s linear;
+        }
+        .audio-play-btn {
+            width: 52px; height: 52px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; padding: 0;
+        }
+        .audio-ctrl-btn {
+            width: 36px; height: 36px; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; padding: 0;
+        }
+    </style>
 </html>

@@ -65,6 +65,11 @@ class Chart
         return $this->data['pdfPath'] ?: null;
     }
 
+    public function getAudioPath(): ?string
+    {
+        return $this->data['audioPath'] ?: null;
+    }
+
     public function getCreatedAt(): string
     {
         return $this->data['created_at'];
@@ -118,6 +123,15 @@ class Chart
     {
         $this->db->query("UPDATE `charts` SET `pdfPath` = ? WHERE `idChart` = ?", [$pdfPath, $this->data['idChart']]);
         $this->data['pdfPath'] = $pdfPath;
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function SetAudioPath(?string $audioPath): void
+    {
+        $this->db->query("UPDATE `charts` SET `audioPath` = ? WHERE `idChart` = ?", [$audioPath, $this->data['idChart']]);
+        $this->data['audioPath'] = $audioPath;
     }
 
     /**
