@@ -16,9 +16,9 @@ fi
 mkdir -p /var/www/html/public/uploads/charts
 chown -R www-data:www-data /var/www/html/public/uploads
 
-# Wait for MySQL to be ready before running migrations
+# Wait for MySQL to be ready and the app user/database to exist before running migrations
 echo "Waiting for database to be ready..."
-until mysqladmin ping -h "${DB_HOST:-db}" -u "${DB_USER}" -p"${DB_PASS}" --silent 2>/dev/null; do
+until mysql -h "${DB_HOST:-db}" -u "${DB_USER}" -p"${DB_PASS}" "${DB_NAME}" -e "SELECT 1" >/dev/null 2>&1; do
     echo "  Database not ready yet, retrying in 2s..."
     sleep 2
 done
