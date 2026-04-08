@@ -19,7 +19,7 @@ CREATE TABLE `log`(
     ipv4 VARCHAR(15) NOT NULL
 );
 
-CREATE TABLE `bandbinder`.`instrument__types` (`idInstrument` VARCHAR(36) NOT NULL , `idInstrumentFamily` VARCHAR(36) NULL , `instrumentName` VARCHAR(64) NOT NULL , PRIMARY KEY (`idInstrument`)) ENGINE = InnoDB;
+CREATE TABLE `bandbinder`.`instrument__types` (`idInstrument` VARCHAR(36) NOT NULL , `idInstrumentFamily` VARCHAR(36) NULL , `instrumentName` VARCHAR(64) NOT NULL, `sortOrder` INT NOT NULL DEFAULT '0' , PRIMARY KEY (`idInstrument`)) ENGINE = InnoDB;
 CREATE TABLE `bandbinder`.`instrument__families` (`idInstrumentFamily` VARCHAR(36) NOT NULL , `instrumentFamilyName` VARCHAR(64) NOT NULL , PRIMARY KEY (`idInstrumentFamily`)) ENGINE = InnoDB;
 CREATE TABLE `bandbinder`.`site__permissions` (`permissionTypeHtml` varchar(64) NOT NULL, `permissionTypeName` varchar(64) NOT NULL, `permissionGroupHtml` varchar(64) NOT NULL, PRIMARY KEY (`permissionTypeHtml`)) ENGINE=InnoDB;
 CREATE TABLE `bandbinder`.`site__permissionGroups` (`permissionGroupHtml` VARCHAR(64) NOT NULL , `permissionGroupName` VARCHAR(64) NOT NULL , PRIMARY KEY (`permissionGroupHtml`)) ENGINE = InnoDB;

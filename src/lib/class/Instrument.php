@@ -30,6 +30,11 @@ class Instrument
         return $this->data['instrumentName'];
     }
 
+    public function getSortOrder()
+    {
+        return $this->data['sortOrder'] ?? null;
+    }
+
     /**
      * @throws Exception
      */
@@ -38,7 +43,53 @@ class Instrument
         return new InstrumentFamily($this->data['idInstrumentFamily']);
     }
 
+    public function getRawIdInstrumentFamily(): string
+    {
+        return $this->data['idInstrumentFamily'];
+    }
 
+    /**
+     * @throws Exception
+     */
+    public function UpdateInstrument(string $instrumentName, InstrumentFamily $family): void
+    {
+        $sql = "UPDATE `instrument__types` SET `instrumentName` = ?, `idInstrumentFamily` = ? WHERE `idInstrument` = ?";
+        $args = [$instrumentName, $family->getIdInstrumentFamily(), $this->data['idInstrument']];
+        $this->db->query($sql, $args);
+        $this->data['instrumentName'] = $instrumentName;
+        $this->data['idInstrumentFamily'] = $family->getIdInstrumentFamily();
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function DeleteInstrument(): void
+    {
+        $this->db->query(
+            "DELETE FROM `instrument__types` WHERE `idInstrument` = ?",
+            [$this->data['idInstrument']]
+        );
+
+        $remaining = $this->db->query(
+            "SELECT `idInstrument` FROM `instrument__types` ORDER BY `sortOrder` IS NULL, `sortOrder`, `instrumentName`"
+        );
+        $orderedIds = array_column($remaining, 'idInstrument');
+        if (!empty($orderedIds)) {
+            static::UpdateOrder($orderedIds);
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public static function UpdateOrder(array $orderedIds): void
+    {
+        $db = new DatabaseManager();
+        foreach ($orderedIds as $position => $id) {
+            $sql = "UPDATE `instrument__types` SET `sortOrder` = ? WHERE `idInstrument` = ?";
+            $db->query($sql, [$position + 1, $id]);
+        }
+    }
 
     /**
      * @throws Exception
@@ -65,7 +116,7 @@ class Instrument
     {
         $response = [];
         $db = new DatabaseManager();
-        $sql = "SELECT * FROM `instrument__types`";
+        $sql = "SELECT * FROM `instrument__types` ORDER BY `sortOrder` IS NULL, `sortOrder`, `instrumentName`";
         $rows = $db->query($sql);
         foreach($rows as $row){
             $response[] = New Instrument($row['idInstrument']);

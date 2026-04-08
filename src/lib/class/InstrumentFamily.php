@@ -58,10 +58,7 @@ class InstrumentFamily
         $rows = $db->query($sql);
         $response = [];
         foreach ($rows as $row) {
-            $response[] = [
-                'value' => $row['idInstrumentFamily'],
-                'text'  => $row['instrumentFamilyName'],
-            ];
+            $response[] = new InstrumentFamily($row['idInstrumentFamily']);
         }
         return $response;
     }
