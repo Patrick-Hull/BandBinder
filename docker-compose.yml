@@ -1,0 +1,36 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: bandbinder-php
+    env_file:
+      - .env
+    volumes:
+      - ./src:/var/www/html
+    depends_on:
+      - db
+    networks:
+      - bandbinder-network
+
+  db:
+    image: mysql:8.0
+    command: ["--require-secure-transport=OFF"]
+    container_name: bandbinder-db
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASS}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASS}
+    volumes:
+      - db_data:/var/lib/mysql
+      # Copy phpMyAdmin setup only the first time:
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d
+    networks:
+      - bandbinder-network
+
+networks:
+  bandbinder-network:
+
+volumes:
+  db_data:
