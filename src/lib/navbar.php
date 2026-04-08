@@ -33,6 +33,22 @@
                     ";
                 }
 
+                if(in_array('artists.view', $_SESSION['user']['permissions'])) {
+                    echo "
+                    <li class='nav-item'>
+                        <a class='nav-link' href='/artists/'>Artists</a>
+                    </li>
+                    ";
+                }
+
+                if(in_array('arrangers.view', $_SESSION['user']['permissions'])) {
+                    echo "
+                    <li class='nav-item'>
+                        <a class='nav-link' href='/arrangers/'>Arrangers</a>
+                    </li>
+                    ";
+                }
+
                 if(in_array('instruments.view', $_SESSION['user']['permissions'])) {
                     echo "
                     <li class='nav-item'>

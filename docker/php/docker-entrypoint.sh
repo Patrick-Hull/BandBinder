@@ -11,5 +11,10 @@ else
     echo "Composer dependencies already up to date."
 fi
 
+# Ensure uploads directory exists and is writable by www-data
+# (must run after the volume mount, so Dockerfile alone cannot do this)
+mkdir -p /var/www/html/public/uploads/charts
+chown -R www-data:www-data /var/www/html/public/uploads
+
 # Finally pass control to Apache/whatever CMD image has
 exec "$@"
