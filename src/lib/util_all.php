@@ -36,6 +36,7 @@ require_once __DIR__ . "/class/Helper.php";
 
 require_once __DIR__ . "/class/Instrument.php";
 require_once __DIR__ . "/class/InstrumentFamily.php";
+require_once __DIR__ . "/class/UserType.php";
 
 $authUrl = [
     "/login.php",

@@ -23,8 +23,8 @@ CREATE TABLE `bandbinder`.`instrument__types` (`idInstrument` VARCHAR(36) NOT NU
 CREATE TABLE `bandbinder`.`instrument__families` (`idInstrumentFamily` VARCHAR(36) NOT NULL , `instrumentFamilyName` VARCHAR(64) NOT NULL , PRIMARY KEY (`idInstrumentFamily`)) ENGINE = InnoDB;
 CREATE TABLE `bandbinder`.`site__permissions` (`permissionTypeHtml` varchar(64) NOT NULL, `permissionTypeName` varchar(64) NOT NULL, `permissionGroupHtml` varchar(64) NOT NULL, PRIMARY KEY (`permissionTypeHtml`)) ENGINE=InnoDB;
 CREATE TABLE `bandbinder`.`site__permissionGroups` (`permissionGroupHtml` VARCHAR(64) NOT NULL , `permissionGroupName` VARCHAR(64) NOT NULL , PRIMARY KEY (`permissionGroupHtml`)) ENGINE = InnoDB;
-CREATE TABLE `bandbinder`.`users__permissions` (`idUserPermission` varchar(36) NOT NULL, `idUser` varchar(36) NOT NULL, `permissionType` enum('group','individual') NOT NULL, `permissionValueHtml` varchar(64) NOT NULL, PRIMARY KEY (`idUserPermission`)) ENGINE=InnoDB;
-
+CREATE TABLE `bandbinder`.`users__permissions` (`idUserPermission` varchar(36) NOT NULL, `idUser` varchar(36) NOT NULL, `permissionType` enum('group','individual', 'userType') NOT NULL, `permissionValueHtml` varchar(64) NOT NULL, PRIMARY KEY (`idUserPermission`)) ENGINE=InnoDB;
+CREATE TABLE `bandbinder`.`link__user_instrument` (`idLink` varchar(36) NOT NULL,`idUser` varchar(36) NOT NULL, `idInstrument` varchar(36) NOT NULL, PRIMARY KEY (`idLink`)) ENGINE=InnoDB
 
 
 

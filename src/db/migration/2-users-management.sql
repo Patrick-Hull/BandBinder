@@ -1,0 +1,39 @@
+-- Add name columns to users table
+ALTER TABLE `users`
+    ADD COLUMN `nameShort` VARCHAR(50) NULL AFTER `email`,
+    ADD COLUMN `nameFirst` VARCHAR(100) NULL AFTER `nameShort`,
+    ADD COLUMN `nameLast` VARCHAR(100) NULL AFTER `nameFirst`;
+
+-- Backfill existing users: set nameShort = username where null
+UPDATE `users` SET `nameShort` = `username` WHERE `nameShort` IS NULL;
+
+-- Create user_types table
+CREATE TABLE `user_types` (
+    `idUserType` VARCHAR(36) NOT NULL PRIMARY KEY,
+    `userTypeName` VARCHAR(64) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Create user_types__permissions link table
+CREATE TABLE `user_types__permissions` (
+    `idUserTypePermission` VARCHAR(36) NOT NULL PRIMARY KEY,
+    `idUserType` VARCHAR(36) NOT NULL,
+    `permissionTypeHtml` VARCHAR(64) NOT NULL,
+    FOREIGN KEY (`idUserType`) REFERENCES `user_types`(`idUserType`) ON DELETE CASCADE,
+    FOREIGN KEY (`permissionTypeHtml`) REFERENCES `site__permissions`(`permissionTypeHtml`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Add 'userType' to the permissionType enum
+ALTER TABLE `users__permissions`
+    MODIFY COLUMN `permissionType` ENUM('group','individual','userType') NOT NULL;
+
+-- Add userTypes permission group and permissions
+INSERT INTO `site__permissionGroups` (`permissionGroupHtml`, `permissionGroupName`)
+    VALUES ('userTypes', 'User Types');
+INSERT INTO `site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`)
+    VALUES ('userTypes.view', 'View User Types', 'userTypes');
+INSERT INTO `site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`)
+    VALUES ('userTypes.create', 'Create User Type', 'userTypes');
+INSERT INTO `site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`)
+    VALUES ('userTypes.edit', 'Edit User Type', 'userTypes');
+INSERT INTO `site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`)
+    VALUES ('userTypes.delete', 'Delete User Type', 'userTypes');
