@@ -1,0 +1,22 @@
+# Docker
+docker-compose.override.yml
+# docker-compose.prod.yml # Usually kept in version control to define prod environment
+.env
+
+# PHP / Composer
+src/vendor/
+composer.phar
+.phpunit.result.cache
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & Temp
+*.log
