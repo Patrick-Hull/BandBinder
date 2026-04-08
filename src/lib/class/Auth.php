@@ -37,7 +37,6 @@ class Auth
         // If we're still here, add some things to the session
         $_SESSION['user']['me'] = $user->getIdUser();
         $_SESSION['user']['permissions'] = $user->getSitePermissions();
-        $_SESSION['idPosition'] = 0;
 
         // In the tiny chance that a session id is hi-jacked before it has expired
         // we record as much /unique/ data as we on login and recheck that the same

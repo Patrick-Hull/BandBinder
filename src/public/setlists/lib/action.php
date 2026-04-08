@@ -74,6 +74,16 @@ if ($action === 'generateSetlistPdf') {
     );
     $pdf->AddPage();
 
+    // ── Notes ─────────────────────────────────────────────────────────────────
+    $notes = trim((string)$setlist->getNotes());
+    if ($notes !== '') {
+        $pdf->SetFont('Helvetica', 'I', 10);
+        $pdf->SetFillColor(245, 245, 245);
+        $pdf->SetX(15);
+        $pdf->MultiCell(180, 6, $notes, 1, 'L', true);
+        $pdf->Ln(4);
+    }
+
     // Column widths — centred in 180mm usable width
     $colW  = [8, 70, 54, 18, 16, 18]; // #, Chart, Artist/Arr, Key, BPM, Dur
     $heads = ['#', 'Chart', 'Artist / Arranger', 'Key', 'BPM', 'Dur'];

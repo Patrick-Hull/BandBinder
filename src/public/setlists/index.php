@@ -19,7 +19,7 @@ $canDelete = in_array('setlists.delete', $_SESSION['user']['permissions']);
         <?php require_once __DIR__ . '/../../lib/navbar.php'; ?>
         <div class="container-fluid mt-4">
             <div class="row">
-                <div class="col-10 mx-auto">
+                <div class="col-12 col-md-11 col-xl-10 mx-auto">
                     <h1>Setlists</h1>
 
                     <?php if ($canCreate): ?>
@@ -175,6 +175,7 @@ $canDelete = in_array('setlists.delete', $_SESSION['user']['permissions']);
                     return html;
                 }}
             ],
+            responsive: true,
             order: [[1, 'desc']]
         });
     });

@@ -18,7 +18,7 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
         <?php require_once __DIR__ . '/../../lib/navbar.php'; ?>
         <div class="container-fluid mt-4">
             <div class="row">
-                <div class="col-10 mx-auto">
+                <div class="col-12 col-md-11 col-xl-10 mx-auto">
 
                     <ul class="nav nav-tabs" id="userPageTabs" role="tablist">
                         <li class="nav-item" role="presentation">

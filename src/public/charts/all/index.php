@@ -69,7 +69,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         <?php require_once __DIR__ . '/../../../lib/navbar.php'; ?>
         <div class="container-fluid mt-4">
             <div class="row">
-                <div class="col-10 mx-auto">
+                <div class="col-12 col-md-11 col-xl-10 mx-auto">
                     <h1>All Charts</h1>
 
                     <?php if ($canCreate): ?>

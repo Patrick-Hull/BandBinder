@@ -12,7 +12,12 @@ function navLink(string $href, string $label, string $currentPath): string {
 ?>
 <nav class="navbar navbar-expand-lg bg-body-tertiary">
     <div class="container-fluid">
-        <a class="navbar-brand" href="#">Navbar</a>
+        <a class="navbar-brand" href="/"><i class="bi bi-music-note-beamed brand-icon"></i> BandBinder</a>
+        <div class="d-flex align-items-center gap-2 ms-auto ms-lg-0 me-2 me-lg-0 order-lg-last">
+            <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary btn-sm" title="Toggle dark mode" onclick="toggleTheme()">
+                <i id="themeToggleIcon" class="bi bi-moon-fill"></i>
+            </button>
+        </div>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
@@ -46,9 +51,6 @@ function navLink(string $href, string $label, string $currentPath): string {
                     <a class="nav-link" href="logout.php">Logout</a>
                 </li>
             </ul>
-            <button id="themeToggleBtn" type="button" class="btn btn-outline-secondary ms-2" title="Toggle dark mode" onclick="toggleTheme()">
-                <i id="themeToggleIcon" class="bi bi-moon-fill"></i>
-            </button>
         </div>
     </div>
 </nav>
