@@ -97,13 +97,17 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label for="createChartName" class="form-label">Chart Name <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="createChartName" placeholder="e.g. Sing Sing Sing">
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-2 mb-3">
                             <label for="createChartBpm" class="form-label">BPM</label>
                             <input type="number" class="form-control" id="createChartBpm" min="1" max="999" placeholder="e.g. 140">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="createChartDuration" class="form-label">Duration</label>
+                            <input type="text" class="form-control" id="createChartDuration" placeholder="m:ss" pattern="\d+:\d{2}">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="createChartKey" class="form-label">Key</label>
@@ -151,13 +155,17 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 <div class="modal-body">
                     <input type="hidden" id="editChartId">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-5 mb-3">
                             <label for="editChartName" class="form-label">Chart Name <span class="text-danger">*</span></label>
                             <input type="text" class="form-control" id="editChartName">
                         </div>
-                        <div class="col-md-3 mb-3">
+                        <div class="col-md-2 mb-3">
                             <label for="editChartBpm" class="form-label">BPM</label>
                             <input type="number" class="form-control" id="editChartBpm" min="1" max="999">
+                        </div>
+                        <div class="col-md-2 mb-3">
+                            <label for="editChartDuration" class="form-label">Duration</label>
+                            <input type="text" class="form-control" id="editChartDuration" placeholder="m:ss" pattern="\d+:\d{2}">
                         </div>
                         <div class="col-md-3 mb-3">
                             <label for="editChartKey" class="form-label">Key</label>
@@ -302,6 +310,20 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             toastr.error(jqXHR.responseJSON?.message || "An unexpected error occurred.");
         }
 
+        // Parse "m:ss" string → total seconds (returns '' if empty/invalid)
+        function parseDurationInput(str) {
+            if (!str || !str.trim()) return '';
+            const m = str.trim().match(/^(\d+):(\d{1,2})$/);
+            if (!m) return '';
+            return parseInt(m[1]) * 60 + parseInt(m[2]);
+        }
+
+        // Format seconds → "m:ss"
+        function formatDurationInput(secs) {
+            if (!secs) return '';
+            return Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+        }
+
         function starsHtml(n) {
             if (!n) return '<span class="text-muted">—</span>';
             return '★'.repeat(n) + '☆'.repeat(5 - n);
@@ -317,6 +339,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {data: 'artistName',   title: 'Artist'},
                     {data: 'arrangerName', title: 'Arranger'},
                     {data: 'bpm',          title: 'BPM'},
+                    {data: 'duration',     title: 'Duration', render: function(d) { return d ? Math.floor(d/60)+':'+String(d%60).padStart(2,'0') : ''; }},
                     {data: 'chartKey',     title: 'Key'},
                     {data: 'hasPdf',       title: 'PDF', render: function(d) { return d ? '<i class="bi bi-file-earmark-pdf text-danger"></i>' : ''; }},
                 ];
@@ -325,14 +348,15 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {targets: 1, orderable: true, searchable: true},
                     {targets: 2, orderable: true, searchable: true},
                     {targets: 3, orderable: true, searchable: false},
-                    {targets: 4, orderable: true, searchable: true},
-                    {targets: 5, orderable: false, searchable: false},
+                    {targets: 4, orderable: false, searchable: false},
+                    {targets: 5, orderable: true, searchable: true},
+                    {targets: 6, orderable: false, searchable: false},
                 ];
 
                 if (canEdit || canDelete) {
                     columns.push({data: null, defaultContent: ''});
                     columnDefs.push({
-                        targets: 6,
+                        targets: 7,
                         orderable: false,
                         searchable: false,
                         title: '',
@@ -427,7 +451,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
         // ── Create Modal ─────────────────────────────────────────
         $('#createChartModal').on('shown.bs.modal', function () {
-            $('#createChartName, #createChartBpm, #createChartKey, #createChartNotes').val('');
+            $('#createChartName, #createChartBpm, #createChartDuration, #createChartKey, #createChartNotes').val('');
             $('#createChartPdf').val('');
 
             if (createArtistTs)  { createArtistTs.destroy();  createArtistTs = null; }
@@ -453,7 +477,8 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             fd.append('chartName', chartName);
             fd.append('idArtist',   createArtistTs  ? createArtistTs.getValue()   : '');
             fd.append('idArranger', createArrangerTs ? createArrangerTs.getValue() : '');
-            fd.append('bpm',   $('#createChartBpm').val());
+            fd.append('bpm',      $('#createChartBpm').val());
+            fd.append('duration', parseDurationInput($('#createChartDuration').val()));
             fd.append('chartKey', $('#createChartKey').val().trim());
             fd.append('notes', $('#createChartNotes').val().trim());
             const pdfFile = $('#createChartPdf')[0].files[0];
@@ -485,6 +510,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             $('#editChartId').val(row.idChart);
             $('#editChartName').val(row.chartName);
             $('#editChartBpm').val(row.bpm || '');
+            $('#editChartDuration').val(row.duration ? formatDurationInput(row.duration) : '');
             $('#editChartKey').val(row.chartKey || '');
             $('#editChartNotes').val(row.notes || '');
             $('#editChartPdf').val('');
@@ -521,7 +547,8 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             fd.append('chartName', chartName);
             fd.append('idArtist',   editArtistTs   ? editArtistTs.getValue()   : '');
             fd.append('idArranger', editArrangerTs  ? editArrangerTs.getValue() : '');
-            fd.append('bpm',   $('#editChartBpm').val());
+            fd.append('bpm',      $('#editChartBpm').val());
+            fd.append('duration', parseDurationInput($('#editChartDuration').val()));
             fd.append('chartKey', $('#editChartKey').val().trim());
             fd.append('notes', $('#editChartNotes').val().trim());
             const pdfFile = $('#editChartPdf')[0].files[0];

@@ -168,6 +168,7 @@ switch ($action) {
                 'idArranger'   => $row['idArranger'],
                 'arrangerName' => $row['arrangerName'] ?? '',
                 'bpm'          => $row['bpm'],
+                'duration'     => isset($row['duration']) ? (int)$row['duration'] : null,
                 'chartKey'     => $row['chartKey']     ?? '',
                 'notes'        => $row['notes']        ?? '',
                 'pdfPath'      => $row['pdfPath']      ?? '',
@@ -189,12 +190,13 @@ switch ($action) {
         }
         $idArtist   = trim($_POST['idArtist']   ?? '') ?: null;
         $idArranger = trim($_POST['idArranger'] ?? '') ?: null;
-        $bpm        = isset($_POST['bpm']) && $_POST['bpm'] !== '' ? (int)$_POST['bpm'] : null;
+        $bpm        = isset($_POST['bpm'])      && $_POST['bpm']      !== '' ? (int)$_POST['bpm']      : null;
+        $duration   = isset($_POST['duration']) && $_POST['duration'] !== '' ? (int)$_POST['duration'] : null;
         $chartKey   = trim($_POST['chartKey']   ?? '') ?: null;
         $notes      = trim($_POST['notes']      ?? '') ?: null;
 
         try {
-            $chart = Chart::CreateChart($chartName, $idArtist, $idArranger, $bpm, $chartKey, $notes);
+            $chart = Chart::CreateChart($chartName, $idArtist, $idArranger, $bpm, $duration, $chartKey, $notes);
             if (isset($_FILES['pdfFile']) && $_FILES['pdfFile']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $pdfPath = saveMasterPdf($chart->getIdChart(), $_FILES['pdfFile']);
                 $chart->SetPdfPath($pdfPath);
@@ -218,13 +220,14 @@ switch ($action) {
         }
         $idArtist   = trim($_POST['idArtist']   ?? '') ?: null;
         $idArranger = trim($_POST['idArranger'] ?? '') ?: null;
-        $bpm        = isset($_POST['bpm']) && $_POST['bpm'] !== '' ? (int)$_POST['bpm'] : null;
+        $bpm        = isset($_POST['bpm'])      && $_POST['bpm']      !== '' ? (int)$_POST['bpm']      : null;
+        $duration   = isset($_POST['duration']) && $_POST['duration'] !== '' ? (int)$_POST['duration'] : null;
         $chartKey   = trim($_POST['chartKey']   ?? '') ?: null;
         $notes      = trim($_POST['notes']      ?? '') ?: null;
 
         try {
             $chart = new Chart($idChart);
-            $chart->UpdateChart($chartName, $idArtist, $idArranger, $bpm, $chartKey, $notes);
+            $chart->UpdateChart($chartName, $idArtist, $idArranger, $bpm, $duration, $chartKey, $notes);
             if (isset($_FILES['pdfFile']) && $_FILES['pdfFile']['error'] !== UPLOAD_ERR_NO_FILE) {
                 $pdfPath = saveMasterPdf($chart->getIdChart(), $_FILES['pdfFile']);
                 $chart->SetPdfPath($pdfPath);

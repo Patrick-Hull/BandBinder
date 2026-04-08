@@ -45,6 +45,11 @@ class Chart
         return isset($this->data['bpm']) && $this->data['bpm'] !== null ? (int)$this->data['bpm'] : null;
     }
 
+    public function getDuration(): ?int
+    {
+        return isset($this->data['duration']) && $this->data['duration'] !== null ? (int)$this->data['duration'] : null;
+    }
+
     public function getChartKey(): ?string
     {
         return $this->data['chartKey'] ?: null;
@@ -89,17 +94,19 @@ class Chart
         ?string $idArtist,
         ?string $idArranger,
         ?int    $bpm,
+        ?int    $duration,
         ?string $chartKey,
         ?string $notes
     ): void {
         $this->db->query(
-            "UPDATE `charts` SET `chartName`=?, `idArtist`=?, `idArranger`=?, `bpm`=?, `chartKey`=?, `notes`=? WHERE `idChart`=?",
-            [$chartName, $idArtist ?: null, $idArranger ?: null, $bpm, $chartKey ?: null, $notes ?: null, $this->data['idChart']]
+            "UPDATE `charts` SET `chartName`=?, `idArtist`=?, `idArranger`=?, `bpm`=?, `duration`=?, `chartKey`=?, `notes`=? WHERE `idChart`=?",
+            [$chartName, $idArtist ?: null, $idArranger ?: null, $bpm, $duration, $chartKey ?: null, $notes ?: null, $this->data['idChart']]
         );
         $this->data['chartName']  = $chartName;
         $this->data['idArtist']   = $idArtist;
         $this->data['idArranger'] = $idArranger;
         $this->data['bpm']        = $bpm;
+        $this->data['duration']   = $duration;
         $this->data['chartKey']   = $chartKey;
         $this->data['notes']      = $notes;
     }
@@ -277,6 +284,7 @@ class Chart
         ?string $idArtist,
         ?string $idArranger,
         ?int    $bpm,
+        ?int    $duration,
         ?string $chartKey,
         ?string $notes
     ): Chart {
@@ -284,9 +292,9 @@ class Chart
         $idChart = Helper::UUIDv4();
         try {
             $db->query(
-                "INSERT INTO `charts` (`idChart`, `chartName`, `idArtist`, `idArranger`, `bpm`, `chartKey`, `notes`)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [$idChart, $chartName, $idArtist ?: null, $idArranger ?: null, $bpm, $chartKey ?: null, $notes ?: null]
+                "INSERT INTO `charts` (`idChart`, `chartName`, `idArtist`, `idArranger`, `bpm`, `duration`, `chartKey`, `notes`)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [$idChart, $chartName, $idArtist ?: null, $idArranger ?: null, $bpm, $duration, $chartKey ?: null, $notes ?: null]
             );
         } catch (Exception $e) {
             throw new Exception("Error creating Chart: " . $e->getMessage());

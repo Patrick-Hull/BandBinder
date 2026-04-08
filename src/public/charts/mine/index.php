@@ -186,8 +186,12 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         {targets: 4, orderable: true, searchable: false},
                         {targets: 5, orderable: true, searchable: false},
                         {targets: 6, orderable: false, searchable: false,
-                            render: function () {
-                                return '<button class="btn btn-sm btn-outline-primary view-chart-btn"><i class="bi bi-eye"></i> View</button>';
+                            render: function (d, t, row) {
+                                let html = '<button class="btn btn-sm btn-outline-primary view-chart-btn me-1"><i class="bi bi-eye"></i> View</button>';
+                                if (row.myPdfPath) {
+                                    html += `<a href="${row.myPdfPath}" target="_blank" class="btn btn-sm btn-outline-danger" title="Open PDF"><i class="bi bi-file-earmark-pdf"></i></a>`;
+                                }
+                                return html;
                             }
                         },
                     ],

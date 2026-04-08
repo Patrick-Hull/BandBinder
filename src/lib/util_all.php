@@ -40,6 +40,7 @@ require_once __DIR__ . "/class/UserType.php";
 require_once __DIR__ . "/class/Artist.php";
 require_once __DIR__ . "/class/Arranger.php";
 require_once __DIR__ . "/class/Chart.php";
+require_once __DIR__ . "/class/Setlist.php";
 
 $authUrl = [
     "/login.php",

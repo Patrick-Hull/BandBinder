@@ -50,8 +50,8 @@ INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionT
 INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('instrumentFamilies.edit', 'Edit Instrument Family', 'instrumentFamilies');
 
 INSERT INTO `bandbinder`.`site__permissionGroups` (`permissionGroupHtml`, `permissionGroupName`) VALUES ('charts', 'Charts');
-INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.view', 'View Chart', 'charts');
-INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.viewAll', 'View Chart', 'charts');
+INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.view', 'View My Charts', 'charts');
+INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.viewAll', 'View All Charts', 'charts');
 INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.create', 'Create Chart', 'charts');
 INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.edit', 'Edit Chart', 'charts');
 INSERT INTO `bandbinder`.`site__permissions` (`permissionTypeHtml`, `permissionTypeName`, `permissionGroupHtml`) VALUES ('charts.delete', 'Delete Chart', 'charts');
