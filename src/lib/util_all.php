@@ -44,7 +44,9 @@ require_once __DIR__ . "/class/Setlist.php";
 
 $authUrl = [
     "/login.php",
-    "/lib/login.php"
+    "/lib/login.php",
+    "/setup.php",
+    "/lib/setup.php",
 ];
 
 
@@ -59,7 +61,15 @@ if(isset($_SESSION['user']['me'])){
     $_SESSION['user']['permissions'] = new User($_SESSION['user']['me'])->getSitePermissions();
 } else {
     /**
-     * User Not Logged In
+     * User Not Logged In — redirect to setup if no users exist, otherwise login
      */
-    header("Location: /login.php");
+    try {
+        $db = new DatabaseManager();
+        $userCount = (int)($db->query("SELECT COUNT(*) as cnt FROM `users`")[0]['cnt'] ?? 0);
+        header("Location: " . ($userCount === 0 ? "/setup.php" : "/login.php"));
+    } catch (Exception $e) {
+        // DB unavailable or migrations haven't run yet — send to setup
+        header("Location: /setup.php");
+    }
+    exit;
 }

@@ -73,9 +73,11 @@ CREATE TABLE `charts` (
   `idArtist` varchar(36) DEFAULT NULL,
   `idArranger` varchar(36) DEFAULT NULL,
   `bpm` int DEFAULT NULL,
+  `duration` smallint unsigned DEFAULT NULL,
   `chartKey` varchar(20) DEFAULT NULL,
   `notes` text,
   `pdfPath` varchar(500) DEFAULT NULL,
+  `audioPath` varchar(500) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`idChart`),
@@ -138,7 +140,48 @@ CREATE TABLE `migrations` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `filename` (`filename`),
   KEY `idx_filename` (`filename`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `setlist__set_charts`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `setlist__set_charts` (
+  `idSetChart` varchar(36) NOT NULL,
+  `idSet` varchar(36) NOT NULL,
+  `idChart` varchar(36) NOT NULL,
+  `sortOrder` int DEFAULT NULL,
+  PRIMARY KEY (`idSetChart`),
+  KEY `idSet` (`idSet`),
+  KEY `idChart` (`idChart`),
+  CONSTRAINT `setlist__set_charts_ibfk_1` FOREIGN KEY (`idSet`) REFERENCES `setlist__sets` (`idSet`) ON DELETE CASCADE,
+  CONSTRAINT `setlist__set_charts_ibfk_2` FOREIGN KEY (`idChart`) REFERENCES `charts` (`idChart`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `setlist__sets`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `setlist__sets` (
+  `idSet` varchar(36) NOT NULL,
+  `idSetlist` varchar(36) NOT NULL,
+  `setName` varchar(100) NOT NULL DEFAULT 'Set 1',
+  `sortOrder` int DEFAULT NULL,
+  PRIMARY KEY (`idSet`),
+  KEY `idSetlist` (`idSetlist`),
+  CONSTRAINT `setlist__sets_ibfk_1` FOREIGN KEY (`idSetlist`) REFERENCES `setlists` (`idSetlist`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `setlists`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `setlists` (
+  `idSetlist` varchar(36) NOT NULL,
+  `setlistName` varchar(255) NOT NULL,
+  `performedAt` date DEFAULT NULL,
+  `notes` text,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`idSetlist`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `site__permissionGroups`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

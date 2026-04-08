@@ -8,8 +8,6 @@ CREATE TABLE IF NOT EXISTS `users` (
     `totpSecret`  VARCHAR(26)  DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT IGNORE INTO `users` (`id`, `username`, `password`, `email`)
-    VALUES ('d5423adf-2d62-46fa-87b7-fde63fc7cfca', 'admin', '$2a$12$gL5b4oQxU2cMpzYH2JGElurPb0JyfI8zL/yTWJEgAWhS2WsVwVLbi', 'admin@admin.com');
 
 CREATE TABLE IF NOT EXISTS `log` (
     `id`       VARCHAR(36)  NOT NULL PRIMARY KEY,
