@@ -9,7 +9,8 @@ services:
     volumes:
       - ./src:/var/www/html
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - bandbinder-network
 
@@ -26,6 +27,12 @@ services:
       - db_data:/var/lib/mysql
       # Copy phpMyAdmin setup only the first time:
       - ./docker/mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 20s
     networks:
       - bandbinder-network
 
