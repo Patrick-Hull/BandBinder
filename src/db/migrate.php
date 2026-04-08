@@ -156,13 +156,6 @@ class DatabaseMigrator
             fn($stmt) => !empty($stmt)
         );
 
-        $pdo = $this->db->getPdo();
-
-        // Note: MySQL DDL (CREATE TABLE, ALTER TABLE) causes implicit commits and
-        // cannot be rolled back. Transactions here protect DML (INSERT/UPDATE/DELETE)
-        // statements. Migrations should be written to be idempotent (IF NOT EXISTS,
-        // INSERT IGNORE) so they are safe to re-run after a partial failure.
-        $pdo->beginTransaction();
         try {
             foreach ($statements as $statement) {
                 $this->db->exec($statement);
@@ -174,12 +167,8 @@ class DatabaseMigrator
                 [$filename]
             );
 
-            $pdo->commit();
             echo " [SUCCESS]\n";
         } catch (Exception $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
             echo " [FAILED]\n";
             echo "Error: " . $e->getMessage() . "\n";
             exit(1);
