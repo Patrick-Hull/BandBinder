@@ -22,12 +22,14 @@ jobs:
 
       - name: Build Docker image
         run: |
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           docker build . \
             -f docker/php/Dockerfile \
-            -t ghcr.io/${{ github.repository_owner }}/bandbinder:latest \
-            -t ghcr.io/${{ github.repository_owner }}/bandbinder:${{ github.event.release.tag_name }}
+            -t ghcr.io/${REPO_OWNER}/bandbinder:latest \
+            -t ghcr.io/${REPO_OWNER}/bandbinder:${{ github.event.release.tag_name }}
 
       - name: Push Docker image
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/bandbinder:latest
-          docker push ghcr.io/${{ github.repository_owner }}/bandbinder:${{ github.event.release.tag_name }}
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          docker push ghcr.io/${REPO_OWNER}/bandbinder:latest
+          docker push ghcr.io/${REPO_OWNER}/bandbinder:${{ github.event.release.tag_name }}
