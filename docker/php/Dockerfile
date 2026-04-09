@@ -6,7 +6,7 @@ FROM php:8.5-apache
 RUN apt-get update && \
     apt-get install -y git unzip libzip-dev default-mysql-client ghostscript && \
     docker-php-ext-install pdo pdo_mysql zip && \
-    a2enmod rewrite && \
+    a2enmod rewrite remoteip && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy Composer from the official image
@@ -22,6 +22,9 @@ COPY ./src /var/www/html
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/sites-available/*.conf
 RUN sed -ri -e "s!/var/www/!${APACHE_DOCUMENT_ROOT}!g" /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
+# Proxy header config (for reverse proxy / SSL termination)
+COPY ./docker/php/proxy.conf /etc/apache2/conf-enabled/proxy.conf
 
 # Copy the entrypoint script into the container
 COPY ./docker/php/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
