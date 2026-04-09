@@ -28,7 +28,7 @@ services:
       # Copy phpMyAdmin setup only the first time:
       - ./docker/mysql-init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--silent"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
       interval: 3s
       timeout: 5s
       retries: 15
