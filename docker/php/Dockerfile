@@ -36,9 +36,13 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 RUN mkdir -p /var/www/html/public/uploads/charts \
     && chown -R www-data:www-data /var/www/html/public/uploads
 
+# Increase PHP upload and POST size limits
+RUN echo "file_uploads=On\nmemory_limit=512M\nupload_max_filesize=200M\npost_max_size=200M\nmax_execution_time=300" \
+    > /usr/local/etc/php/conf.d/uploads.ini
+
 # Expose Apache’s default port
 EXPOSE 80
 
-# ENTRYPOINT and CMD go at the bottom:
+# ENTRYPOINT and CMD
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
