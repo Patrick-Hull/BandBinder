@@ -175,6 +175,7 @@ switch ($action) {
                 'hasPdf'       => !empty($row['pdfPath']),
                 'audioPath'    => $row['audioPath']    ?? '',
                 'hasAudio'     => !empty($row['audioPath']),
+                'isActive'     => !empty($row['isActive']),
             ];
         }
         http_response_code(200);
@@ -266,6 +267,31 @@ switch ($action) {
         }
         http_response_code(200);
         echo json_encode(['success' => true]);
+        break;
+
+    // ── Toggle chart activation ─────────────────────────────────────────────────────────
+    case 'toggleActivation':
+        if (!in_array('charts.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        try {
+            $chart = new Chart($idChart);
+            if($chart->IsChartActive()){
+                $chart->DeactivateChart();
+                $action = 'deactivated';
+            } else {
+                $chart->ActivateChart();
+                $action = 'activated';
+            }
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['success' => true, "action" => $action]);
         break;
 
     // ── Artists list for dropdown ─────────────────────────────────────────────
