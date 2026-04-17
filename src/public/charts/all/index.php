@@ -90,6 +90,10 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#createChartModal">
                             <i class="bi bi-plus-lg"></i> Create Chart
                         </button>
+                        <button type="button" class="btn btn-outline-primary mb-3 ms-2" id="bulkUploadBtn">
+                            <i class="bi bi-cloud-upload"></i> Bulk Upload PDFs
+                        </button>
+                        <input type="file" id="bulkUploadInput" multiple accept=".pdf" class="d-none">
                     <?php endif; ?>
 
                     <table id="chartTable" class="table table-striped table-bordered table-sm"></table>
@@ -402,6 +406,33 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <i class="bi bi-volume-down text-muted"></i>
                         <input type="range" class="form-range flex-grow-1" id="audioVolume" min="0" max="1" step="0.05" value="1">
                         <i class="bi bi-volume-up text-muted"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════
+         BULK UPLOAD PROGRESS MODAL
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="bulkUploadModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5"><i class="bi bi-cloud-upload me-2"></i>Uploading Charts…</h1>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-1" style="font-size:0.85rem;">Currently uploading:</p>
+                    <p class="fw-semibold mb-3 text-truncate" id="bulkCurrentFileName" style="max-width:100%;">—</p>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <small class="text-muted">Overall progress</small>
+                        <small class="text-muted fw-semibold" id="bulkCounter">0 / 0</small>
+                    </div>
+                    <div class="progress" style="height:10px;">
+                        <div class="progress-bar upload-progress-bar" id="bulkProgressBar" role="progressbar" style="width:0%;"></div>
+                    </div>
+                    <div class="text-end mt-1">
+                        <small class="text-muted" id="bulkProgressPct">0%</small>
                     </div>
                 </div>
             </div>
@@ -1355,5 +1386,90 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         function escHtml(str) {
             return $('<div>').text(str || '').html();
         }
+
+        // ── Bulk Upload PDFs ─────────────────────────────────────
+        $('#bulkUploadBtn').on('click', function () {
+            $('#bulkUploadInput').val('').trigger('click');
+        });
+
+        $('#bulkUploadInput').on('change', async function () {
+            const files = Array.from(this.files);
+            if (!files.length) return;
+
+            const total = files.length;
+            const bulkModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('bulkUploadModal'));
+
+            function updateBulkProgress(fileIndex, fileName, filePct) {
+                const overallPct = Math.round(((fileIndex + filePct / 100) / total) * 100);
+                $('#bulkCurrentFileName').text(fileName);
+                $('#bulkCounter').text((fileIndex + 1) + ' / ' + total);
+                $('#bulkProgressBar').css('width', overallPct + '%');
+                $('#bulkProgressPct').text(overallPct + '%');
+            }
+
+            // Reset state and show modal
+            $('#bulkProgressBar').css('width', '0%');
+            $('#bulkProgressPct').text('0%');
+            $('#bulkCounter').text('0 / ' + total);
+            $('#bulkCurrentFileName').text('—');
+            bulkModal.show();
+
+            let successCount = 0;
+            let errorCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const chartName = file.name.replace(/\.pdf$/i, '');
+                updateBulkProgress(i, file.name, 0);
+
+                await new Promise((resolve) => {
+                    const fd = new FormData();
+                    fd.append('action',    'createChart');
+                    fd.append('chartName', chartName);
+                    fd.append('pdfFile',   file);
+
+                    const xhr = new XMLHttpRequest();
+                    xhr.upload.addEventListener('progress', function (e) {
+                        if (!e.lengthComputable) return;
+                        const pct = Math.round(e.loaded / e.total * 100);
+                        updateBulkProgress(i, file.name, pct);
+                    });
+                    xhr.onload = function () {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                            try {
+                                const resp = JSON.parse(xhr.responseText);
+                                toastr.error('Failed to upload "' + escHtml(file.name) + '": ' + (resp.message || 'Unknown error'));
+                            } catch (e) {
+                                toastr.error('Failed to upload "' + escHtml(file.name) + '".');
+                            }
+                        }
+                        updateBulkProgress(i, file.name, 100);
+                        resolve();
+                    };
+                    xhr.onerror = function () {
+                        errorCount++;
+                        toastr.error('Network error uploading "' + escHtml(file.name) + '".');
+                        resolve();
+                    };
+                    xhr.open('POST', 'lib/action.php');
+                    xhr.send(fd);
+                });
+            }
+
+            // Ensure bar shows 100% at completion
+            $('#bulkProgressBar').css('width', '100%');
+            $('#bulkProgressPct').text('100%');
+            $('#bulkCounter').text(total + ' / ' + total);
+
+            bulkModal.hide();
+            fetchData();
+
+            if (successCount > 0) {
+                toastr.success(successCount + ' chart(s) uploaded successfully.');
+            }
+        });
     </script>
 </html>
