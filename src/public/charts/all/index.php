@@ -63,6 +63,20 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 min-height: 0;
                 padding: 0;
             }
+            /* ── Upload progress bars ────────────────────────────── */
+            .upload-progress-bar {
+                background: linear-gradient(90deg, #0d6efd, #6ea8fe);
+                transition: width .15s ease;
+            }
+            .upload-progress-bar.is-processing {
+                background: linear-gradient(90deg, #0d6efd, #6ea8fe);
+                background-image: repeating-linear-gradient(
+                    45deg, transparent, transparent 10px,
+                    rgba(255,255,255,.25) 10px, rgba(255,255,255,.25) 20px
+                );
+                animation: progress-bar-stripes .75s linear infinite;
+                width: 100% !important;
+            }
         </style>
     </head>
     <body>
@@ -132,6 +146,15 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <label for="createChartPdf" class="form-label">PDF Upload</label>
                         <input type="file" class="form-control" id="createChartPdf" accept=".pdf">
                         <div class="form-text">Upload the master PDF (full band score or single PDF with all instruments).</div>
+                    </div>
+                    <div id="createChartPdfProgress" class="upload-progress-wrap d-none mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted upload-progress-label">Uploading PDF…</small>
+                            <small class="text-muted upload-progress-pct">0%</small>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar upload-progress-bar" role="progressbar" style="width:0%;"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -203,6 +226,15 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <input type="file" class="form-control" id="editChartPdf" accept=".pdf">
                         <div class="form-text">Uploading a new PDF will replace the existing master PDF.</div>
                     </div>
+                    <div id="editChartPdfProgress" class="upload-progress-wrap d-none mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted upload-progress-label">Uploading PDF…</small>
+                            <small class="text-muted upload-progress-pct">0%</small>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar upload-progress-bar" role="progressbar" style="width:0%;"></div>
+                        </div>
+                    </div>
 
                     <!-- Audio section -->
                     <hr>
@@ -218,9 +250,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <input type="file" class="form-control" id="editChartAudio" accept=".mp3,.wav,.ogg,.m4a,.flac,.aac">
                         <div class="form-text">Supported: MP3, WAV, OGG, M4A, FLAC, AAC.</div>
                     </div>
-                    <div id="audioUploadProgress" class="d-none mb-2">
-                        <div class="progress" style="height:6px">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+                    <div id="audioUploadProgress" class="upload-progress-wrap d-none mb-2">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <small class="text-muted upload-progress-label">Uploading audio…</small>
+                            <small class="text-muted upload-progress-pct">0%</small>
+                        </div>
+                        <div class="progress" style="height:6px;">
+                            <div class="progress-bar upload-progress-bar" role="progressbar" style="width:0%;"></div>
                         </div>
                     </div>
                 </div>
@@ -281,6 +317,17 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                             </small>
                         </div>
                         <div id="instrumentSidebar" class="flex-grow-1 p-2" style="overflow-y:auto;"></div>
+                        <div class="px-2 pt-2">
+                            <div id="instrumentPdfProgress" class="upload-progress-wrap d-none mb-2">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <small class="text-muted upload-progress-label">Uploading PDF…</small>
+                                    <small class="text-muted upload-progress-pct">0%</small>
+                                </div>
+                                <div class="progress" style="height:6px;">
+                                    <div class="progress-bar upload-progress-bar" role="progressbar" style="width:0%;"></div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="p-2 border-top">
                             <button class="btn btn-sm btn-outline-secondary w-100" id="clearAllPagesBtn">
                                 <i class="bi bi-x-circle"></i> Clear All Selections
@@ -428,6 +475,38 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
         function ajaxErrorHandler(jqXHR) {
             toastr.error(jqXHR.responseJSON?.message || "An unexpected error occurred.");
+        }
+
+        // Returns an xhr factory for $.ajax that tracks upload progress on the given progress wrap element.
+        function makeXhrWithProgress(progressWrapId, label) {
+            return function () {
+                const wrap = $(progressWrapId);
+                const bar  = wrap.find('.upload-progress-bar');
+                const pct  = wrap.find('.upload-progress-pct');
+                wrap.find('.upload-progress-label').text(label || 'Uploading…');
+                bar.removeClass('is-processing').css('width', '0%');
+                pct.text('0%');
+                wrap.removeClass('d-none');
+                const xhr = new window.XMLHttpRequest();
+                xhr.upload.addEventListener('progress', function (e) {
+                    if (!e.lengthComputable) return;
+                    const p = Math.round(e.loaded / e.total * 100);
+                    bar.css('width', p + '%');
+                    pct.text(p + '%');
+                    if (p >= 100) {
+                        bar.addClass('is-processing');
+                        wrap.find('.upload-progress-label').text('Processing…');
+                        pct.text('');
+                    }
+                });
+                return xhr;
+            };
+        }
+
+        function hideProgress(progressWrapId) {
+            $(progressWrapId).addClass('d-none')
+                .find('.upload-progress-bar').removeClass('is-processing').css('width', '0%');
+            $(progressWrapId).find('.upload-progress-pct').text('0%');
         }
 
         // Parse "m:ss" string → total seconds (returns '' if empty/invalid)
@@ -605,6 +684,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         $('#createChartModal').on('shown.bs.modal', function () {
             $('#createChartName, #createChartBpm, #createChartDuration, #createChartKey, #createChartNotes').val('');
             $('#createChartPdf').val('');
+            hideProgress('#createChartPdfProgress');
 
             if (createArtistTs)  { createArtistTs.destroy();  createArtistTs = null; }
             if (createArrangerTs){ createArrangerTs.destroy(); createArrangerTs = null; }
@@ -636,17 +716,23 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             const pdfFile = $('#createChartPdf')[0].files[0];
             if (pdfFile) fd.append('pdfFile', pdfFile);
 
-            $.ajax({
+            const ajaxOpts = {
                 type: 'POST', url: 'lib/action.php',
                 data: fd, processData: false, contentType: false,
                 dataType: 'JSON',
                 success: function () {
+                    if (pdfFile) hideProgress('#createChartPdfProgress');
                     bootstrap.Modal.getInstance(document.getElementById('createChartModal')).hide();
                     fetchData();
                     toastr.success('Chart created successfully.');
                 },
-                error: ajaxErrorHandler
-            });
+                error: function (xhr) {
+                    if (pdfFile) hideProgress('#createChartPdfProgress');
+                    ajaxErrorHandler(xhr);
+                }
+            };
+            if (pdfFile) ajaxOpts.xhr = makeXhrWithProgress('#createChartPdfProgress', 'Uploading PDF…');
+            $.ajax(ajaxOpts);
         });
 
         // ── Edit Modal ───────────────────────────────────────────
@@ -667,7 +753,8 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             $('#editChartNotes').val(row.notes || '');
             $('#editChartPdf').val('');
             $('#editChartAudio').val('');
-            $('#audioUploadProgress').addClass('d-none');
+            hideProgress('#editChartPdfProgress');
+            hideProgress('#audioUploadProgress');
 
             if (row.isActive) {
                 $('#containerActivateButton').html('<button type="button" class="btn btn-danger toggleActivationBtn" data-chart-id="' + row.idChart + '">Deactivate</button>');
@@ -722,17 +809,23 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             const pdfFile = $('#editChartPdf')[0].files[0];
             if (pdfFile) fd.append('pdfFile', pdfFile);
 
-            $.ajax({
+            const ajaxOpts = {
                 type: 'POST', url: 'lib/action.php',
                 data: fd, processData: false, contentType: false,
                 dataType: 'JSON',
                 success: function () {
+                    if (pdfFile) hideProgress('#editChartPdfProgress');
                     bootstrap.Modal.getInstance(document.getElementById('editChartModal')).hide();
                     fetchData();
                     toastr.success('Chart updated successfully.');
                 },
-                error: ajaxErrorHandler
-            });
+                error: function (xhr) {
+                    if (pdfFile) hideProgress('#editChartPdfProgress');
+                    ajaxErrorHandler(xhr);
+                }
+            };
+            if (pdfFile) ajaxOpts.xhr = makeXhrWithProgress('#editChartPdfProgress', 'Uploading PDF…');
+            $.ajax(ajaxOpts);
         });
 
         $(document).on('click', '.toggleActivationBtn', function () {
@@ -794,13 +887,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             fd.append('idChart',   idChart);
             fd.append('audioFile', file);
 
-            $('#audioUploadProgress').removeClass('d-none');
             $.ajax({
                 type: 'POST', url: 'lib/action.php',
                 data: fd, processData: false, contentType: false,
                 dataType: 'JSON',
+                xhr: makeXhrWithProgress('#audioUploadProgress', 'Uploading audio…'),
                 success: function (r) {
-                    $('#audioUploadProgress').addClass('d-none');
+                    hideProgress('#audioUploadProgress');
                     $('#editCurrentAudioSection').removeClass('d-none');
                     $('#editCurrentAudioName').text(r.audioPath.split('/').pop());
                     // Update in-memory row so the table reflects change without full reload
@@ -809,7 +902,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     toastr.success('Audio uploaded.');
                 },
                 error: function (xhr) {
-                    $('#audioUploadProgress').addClass('d-none');
+                    hideProgress('#audioUploadProgress');
                     ajaxErrorHandler(xhr);
                 }
             });
@@ -965,6 +1058,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
         // Load data after modal fully shown (avoids layout issues)
         $('#managePdfModal').on('shown.bs.modal', function () {
+            hideProgress('#instrumentPdfProgress');
             if (!managePdfIdChart) return;
             $.ajax({
                 type: 'POST', url: 'lib/action.php',
@@ -1074,7 +1168,9 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 type: 'POST', url: 'lib/action.php',
                 data: fd, processData: false, contentType: false,
                 dataType: 'JSON',
+                xhr: makeXhrWithProgress('#instrumentPdfProgress', 'Uploading PDF for ' + instrName + '…'),
                 success: function (r) {
+                    hideProgress('#instrumentPdfProgress');
                     toastr.success('PDF uploaded for ' + instrName + '.');
                     managePdfPartsMap[idInstr] = r;
                     // Show/update has-pdf link
@@ -1088,7 +1184,10 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     }
                     input.value = '';
                 },
-                error: ajaxErrorHandler
+                error: function (xhr) {
+                    hideProgress('#instrumentPdfProgress');
+                    ajaxErrorHandler(xhr);
+                }
             });
         });
 
