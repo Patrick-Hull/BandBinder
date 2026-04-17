@@ -290,6 +290,21 @@ class Chart
         );
     }
 
+    public function IsChartActive()
+    {
+        return $this->data['isActive'] ?? false;
+    }
+
+    public function DeactivateChart()
+    {
+        $this->db->query("UPDATE `charts` SET `isActive` = 0 WHERE `idChart` = ?", [$this->data['idChart']]);
+    }
+
+    public function ActivateChart()
+    {
+        $this->db->query("UPDATE `charts` SET `isActive` = 1 WHERE `idChart` = ?", [$this->data['idChart']]);
+    }
+
     /**
      * @throws Exception
      */
@@ -352,6 +367,36 @@ class Chart
                )
              ORDER BY c.chartName",
             [$idUser]
+        );
+        return array_map(fn($row) => new Chart($row['idChart']), $rows);
+    }
+
+    /**
+     * Returns charts visible to a specific user based on their instrument assignments. and whether the chart is active
+     * Shows charts with no PDF parts (master PDF only) and charts where the user's
+     * instrument has been assigned a PDF part.
+     * @throws Exception
+     */
+    public static function GetActiveForUser(string $idUser): array
+    {
+        $db = new DatabaseManager();
+        $rows = $db->query(
+            "SELECT DISTINCT c.*
+             FROM `charts` c
+             WHERE(
+               -- Chart has no instrument parts yet (accessible to all)
+               NOT EXISTS (SELECT 1 FROM `chart__pdf_parts` cpp WHERE cpp.idChart = c.idChart)
+               OR
+               -- Chart has a part assigned to one of the user's instruments
+               EXISTS (
+                   SELECT 1
+                   FROM `chart__pdf_parts` cpp
+                   JOIN `link__user_instrument` lui ON lui.idInstrument = cpp.idInstrument
+                   WHERE cpp.idChart = c.idChart AND lui.idUser = ?
+               ))
+             AND isActive = ?
+             ORDER BY c.chartName",
+            [$idUser, true]
         );
         return array_map(fn($row) => new Chart($row['idChart']), $rows);
     }

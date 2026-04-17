@@ -17,6 +17,8 @@ services:
       - bandbinder-network
 
   db:
+    ports:
+      - "3307:3306"
     image: mysql:8.0
     command: ["--require-secure-transport=OFF"]
     container_name: bandbinder-db

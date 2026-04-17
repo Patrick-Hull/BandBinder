@@ -18,7 +18,7 @@ switch ($action) {
             http_response_code(403); echo json_encode(['error' => 'Permission denied']); exit;
         }
         try {
-            $charts = Chart::GetAllForUser($idUser);
+            $charts = Chart::GetActiveForUser($idUser);
             $db     = new DatabaseManager();
 
             // Get user's instruments

@@ -226,6 +226,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <div id="containerActivateButton"></div>
                     <button type="button" class="btn btn-primary" id="updateChartBtn">Save Changes</button>
                 </div>
             </div>
@@ -487,10 +488,34 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         orderable: false,
                         searchable: false,
                         title: '',
-                        render: function () {
+                        render: function (data, type, row) {
                             let html = '';
-                            if (canEdit)   html += '<button class="btn btn-sm btn-outline-secondary edit-chart-btn me-1"><i class="bi bi-pencil"></i> Edit</button>';
-                            if (canDelete) html += '<button class="btn btn-sm btn-outline-danger delete-chart-btn"><i class="bi bi-trash"></i> Delete</button>';
+
+                            // ✅ Activate/Deactivate
+                            if (row.isActive) {
+                                html += `<button type="button"
+                                 class="btn btn-sm btn-outline-success toggleActivationBtn me-1"
+                                 data-chart-id="${row.idChart}">
+                            Active
+                         </button>`;
+                            } else {
+                                html += `<button type="button"
+                                 class="btn btn-sm btn-outline-danger toggleActivationBtn me-1"
+                                 data-chart-id="${row.idChart}">
+                            Inactive
+                         </button>`;
+                            }
+
+                            // ✅ Edit button
+                            if (canEdit) {
+                                html += '<button class="btn btn-sm btn-outline-secondary edit-chart-btn me-1"><i class="bi bi-pencil"></i> Edit</button>';
+                            }
+
+                            // ✅ Delete button
+                            if (canDelete) {
+                                html += '<button class="btn btn-sm btn-outline-danger delete-chart-btn"><i class="bi bi-trash"></i> Delete</button>';
+                            }
+
                             return html;
                         }
                     });
@@ -644,6 +669,12 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             $('#editChartAudio').val('');
             $('#audioUploadProgress').addClass('d-none');
 
+            if (row.isActive) {
+                $('#containerActivateButton').html('<button type="button" class="btn btn-danger toggleActivationBtn" data-chart-id="' + row.idChart + '">Deactivate</button>');
+            } else {
+                $('#containerActivateButton').html('<button type="button" class="btn btn-success toggleActivationBtn" data-chart-id="' + row.idChart + '">Activate</button>');
+            }
+
             if (row.pdfPath) {
                 $('#editCurrentPdfSection').removeClass('d-none');
                 $('#editCurrentPdfLink').attr('href', row.pdfPath);
@@ -699,6 +730,29 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     bootstrap.Modal.getInstance(document.getElementById('editChartModal')).hide();
                     fetchData();
                     toastr.success('Chart updated successfully.');
+                },
+                error: ajaxErrorHandler
+            });
+        });
+
+        $(document).on('click', '.toggleActivationBtn', function () {
+            const btn = $(this);
+            const idChart = btn.data('chart-id');
+            const rowData = table.row(btn.closest('tr')).data();
+
+            $.ajax({
+                type: 'POST',
+                url: 'lib/action.php',
+                data: { action: "toggleActivation", idChart: idChart },
+                dataType: 'JSON',
+                success: function (data) {
+                    // Toggle locally so we don’t need a full reload
+                    rowData.isActive = !rowData.isActive;
+
+                    // Update the DataTable row without refreshing everything
+                    table.row(btn.closest('tr')).data(rowData).invalidate('data').draw(false);
+
+                    toastr.success(`Chart ${rowData.isActive ? 'activated' : 'deactivated'} successfully.`);
                 },
                 error: ajaxErrorHandler
             });
