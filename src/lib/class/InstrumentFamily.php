@@ -34,10 +34,10 @@ class InstrumentFamily
     /**
      * @throws Exception
      */
-    public static function CreateInstrumentFamily(string $instrumentFamilyName): InstrumentFamily
+    public static function CreateInstrumentFamily(string $instrumentFamilyName, ?string $customId = null): InstrumentFamily
     {
         $db = new DatabaseManager();
-        $idInstrumentFamily = Helper::UUIDv4();
+        $idInstrumentFamily = $customId ?: Helper::UUIDv4();
         $sql = "INSERT INTO `instrument__families` (`idInstrumentFamily`, `instrumentFamilyName`) VALUES (?, ?)";
         $args = [$idInstrumentFamily, $instrumentFamilyName];
         try {

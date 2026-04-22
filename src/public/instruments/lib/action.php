@@ -76,6 +76,7 @@ switch($action) {
         }
 
         $familyName = trim($_POST['instrumentFamilyName'] ?? '');
+        $familyId = trim($_POST['familyId'] ?? '') ?: null;
         if($familyName === ''){
             http_response_code(400);
             echo json_encode(['message' => 'Instrument family name is required']);
@@ -83,8 +84,14 @@ switch($action) {
         }
 
         try {
-            $family = InstrumentFamily::CreateInstrumentFamily($familyName);
+            $family = InstrumentFamily::CreateInstrumentFamily($familyName, $familyId);
         } catch (Exception $e) {
+            // Check if it's a duplicate key error - that's okay for preseeding
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false) {
+                http_response_code(200);
+                echo json_encode(['id' => $familyId, 'name' => $familyName, 'skipped' => true]);
+                exit;
+            }
             http_response_code(500);
             echo json_encode(['message' => $e->getMessage()]);
             exit;
@@ -106,6 +113,8 @@ switch($action) {
 
         $instrumentName    = trim($_POST['instrumentName'] ?? '');
         $idInstrumentFamily = trim($_POST['idInstrumentFamily'] ?? '');
+        $instrumentId = trim($_POST['instrumentId'] ?? '') ?: null;
+        $sortOrder = isset($_POST['sortOrder']) && $_POST['sortOrder'] !== '' ? (int)$_POST['sortOrder'] : null;
 
         if($instrumentName === '' || $idInstrumentFamily === ''){
             http_response_code(400);
@@ -115,8 +124,14 @@ switch($action) {
 
         try {
             $family     = new InstrumentFamily($idInstrumentFamily);
-            $instrument = Instrument::CreateInstrument($instrumentName, $family);
+            $instrument = Instrument::CreateInstrument($instrumentName, $family, $instrumentId, $sortOrder);
         } catch (Exception $e) {
+            // Check if it's a duplicate - that's okay for preseeding
+            if (strpos($e->getMessage(), 'Duplicate entry') !== false || strpos($e->getMessage(), 'Duplicate key') !== false) {
+                http_response_code(200);
+                echo json_encode(['id' => $instrumentId, 'skipped' => true]);
+                exit;
+            }
             http_response_code(500);
             echo json_encode(['message' => $e->getMessage()]);
             exit;
