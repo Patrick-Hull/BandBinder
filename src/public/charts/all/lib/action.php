@@ -190,8 +190,30 @@ switch ($action) {
         if (!empty($chartIds)) {
             $categoriesMap = Category::GetByCharts($chartIds);
         }
+        // Get aggregate ratings for all charts
+        $ratingsMap = [];
+        if (!empty($chartIds)) {
+            try {
+                $db = new DatabaseManager();
+                $ratings = $db->query(
+                    "SELECT idChart, AVG(starRating) as avgRating, COUNT(*) as ratingCount
+                     FROM `chart__user_fields`
+                     WHERE idChart IN (" . implode(',', array_fill(0, count($chartIds), '?')) . ") AND starRating IS NOT NULL
+                     GROUP BY idChart",
+                    $chartIds
+                );
+                foreach ($ratings as $r) {
+                    $ratingsMap[$r['idChart']] = [
+                        'avgRating' => round($r['avgRating'], 1),
+                        'ratingCount' => (int)$r['ratingCount'],
+                    ];
+                }
+            } catch (Exception $e) {
+                // Ignore rating errors
+            }
+        }
         http_response_code(200);
-        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap]);
+        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap, 'ratingsMap' => $ratingsMap]);
         break;
 
     // ── Create chart ─────────────────────────────────────────────────────────
@@ -584,6 +606,102 @@ switch ($action) {
         }
         http_response_code(200);
         echo json_encode(['success' => true]);
+        break;
+
+    // ── Send chart to members ─────────────────────────────────────────
+    case 'sendChartToMembers':
+        if (!in_array('charts.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        $sendToAll = isset($_POST['sendToAll']) && $_POST['sendToAll'] === 'true';
+        $memberIds = json_decode($_POST['memberIds'] ?? '[]', true);
+        $pdfType = trim($_POST['pdfType'] ?? 'instrument'); // 'instrument' or 'master'
+        $emailBody = trim($_POST['emailBody'] ?? '');
+
+        // Filter out empty strings
+        $memberIds = array_filter($memberIds, fn($id) => !empty($id));
+
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        try {
+            $chart = new Chart($idChart);
+            $chartName = $chart->getChartName();
+            $artist = $chart->getArtist();
+            $artistName = $artist ? $artist->getArtistName() : '';
+            $arranger = $chart->getArranger();
+            $arrangerName = $arranger ? $arranger->getArrangerName() : '';
+
+            $db = new DatabaseManager();
+
+            // Get recipients
+            if ($sendToAll) {
+                $users = $db->query("SELECT id, username, email FROM `users`");
+            } else {
+                $users = [];
+                if (!empty($memberIds)) {
+                    $placeholders = implode(',', array_fill(0, count($memberIds), '?'));
+                    $sql = "SELECT id, username, email FROM `users` WHERE id IN ($placeholders)";
+                    error_log("sendChartToMembers SQL: $sql with params: " . implode(',', $memberIds));
+                    $users = $db->query($sql, $memberIds);
+                    error_log("sendChartToMembers users result count: " . count($users));
+                }
+            }
+
+            $subject = "Chart: {$chartName}" . ($artistName ? " - {$artistName}" : "");
+            $sentCount = 0;
+
+            // Get PDF path for attachment
+            $pdfUrl = $chart->getPdfPath() ?: '';
+            $pdfPath = '';
+            $pdfName = '';
+            if ($pdfUrl) {
+                $pdfPath = $_SERVER['DOCUMENT_ROOT'] . $pdfUrl;
+                $pdfName = basename($pdfUrl);
+            }
+
+            $body = $emailBody ? nl2br(htmlspecialchars($emailBody)) : "Please find the chart PDF attached.";
+
+            foreach ($users as $user) {
+                $email = $user['email'];
+                $userId = $user['id'];
+
+                $attachments = [];
+
+                if ($pdfType === 'master') {
+                    // Always send master PDF
+                    if ($pdfPath && file_exists($pdfPath)) {
+                        $attachments[] = ['path' => $pdfPath, 'name' => $pdfName];
+                    }
+                } else {
+                    // Send instrument-specific PDF if user has one, otherwise master
+                    $instrumentPdf = $db->query(
+                        "SELECT cpp.pdfPath FROM `chart__pdf_parts` cpp
+                         JOIN `link__user_instrument` lui ON lui.idInstrument = cpp.idInstrument
+                         WHERE cpp.idChart = ? AND lui.idUser = ?",
+                        [$idChart, $userId]
+                    );
+
+                    if (!empty($instrumentPdf) && !empty($instrumentPdf[0]['pdfPath'])) {
+                        $ipPath = $_SERVER['DOCUMENT_ROOT'] . $instrumentPdf[0]['pdfPath'];
+                        if (file_exists($ipPath)) {
+                            $attachments[] = ['path' => $ipPath, 'name' => basename($instrumentPdf[0]['pdfPath'])];
+                        }
+                    } elseif ($pdfPath && file_exists($pdfPath)) {
+                        // No instrument-specific PDF, send master
+                        $attachments[] = ['path' => $pdfPath, 'name' => $pdfName];
+                    }
+                }
+
+                $result = Mail::send($email, $subject, $body, [], $attachments);
+                if ($result) $sentCount++;
+            }
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['sentCount' => $sentCount]);
         break;
 
     default:

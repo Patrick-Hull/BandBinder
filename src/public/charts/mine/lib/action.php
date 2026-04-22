@@ -123,8 +123,29 @@ switch ($action) {
         if (!empty($chartIds)) {
             $categoriesMap = Category::GetByCharts($chartIds);
         }
+        // Get aggregate ratings for all charts
+        $ratingsMap = [];
+        if (!empty($chartIds)) {
+            try {
+                $ratings = $db->query(
+                    "SELECT idChart, AVG(starRating) as avgRating, COUNT(*) as ratingCount
+                     FROM `chart__user_fields`
+                     WHERE idChart IN (" . implode(',', array_fill(0, count($chartIds), '?')) . ") AND starRating IS NOT NULL
+                     GROUP BY idChart",
+                    $chartIds
+                );
+                foreach ($ratings as $r) {
+                    $ratingsMap[$r['idChart']] = [
+                        'avgRating' => round($r['avgRating'], 1),
+                        'ratingCount' => (int)$r['ratingCount'],
+                    ];
+                }
+            } catch (Exception $e) {
+                // Ignore rating errors
+            }
+        }
         http_response_code(200);
-        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap]);
+        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap, 'ratingsMap' => $ratingsMap]);
         break;
 
     // ── Save personal fields for a chart ─────────────────────────────────────

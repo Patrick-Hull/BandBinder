@@ -128,6 +128,48 @@ $canDelete = in_array('setlists.delete', $_SESSION['user']['permissions']);
     </div>
     <?php endif; ?>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         SEND SETLIST MODAL
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="sendSetlistModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5">Send Setlist to Members</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="sendSetlistId">
+                    <div class="mb-3">
+                        <label for="sendSetlistName" class="form-label">Setlist</label>
+                        <div id="sendSetlistName" class="fw-semibold">—</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendSetlistMemberSelect" class="form-label">Recipients</label>
+                        <select id="sendSetlistMemberSelect" class="form-control" multiple placeholder="Select band members..."></select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple members, or select none to send to all.</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="sendSetlistToAllMembers">
+                        <label class="form-check-label" for="sendSetlistToAllMembers">Send to all band members</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendSetlistEmailBody" class="form-label">Email Body</label>
+                        <textarea class="form-control" id="sendSetlistEmailBody" rows="6" placeholder="Enter your message to the band members..."></textarea>
+                    </div>
+                    <div id="sendSetlistEmailPreview" class="mb-3 d-none">
+                        <label class="form-label">Preview</label>
+                        <div class="border rounded p-3 bg-light small" id="sendSetlistEmailPreviewContent"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="sendSetlistBtn"><i class="bi bi-envelope"></i> Send Email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
     const CAN_EDIT   = <?php echo $canEdit   ? 'true' : 'false'; ?>;
     const CAN_DELETE = <?php echo $canDelete ? 'true' : 'false'; ?>;
@@ -169,6 +211,9 @@ $canDelete = in_array('setlists.delete', $_SESSION['user']['permissions']);
                         html += `<button class="btn btn-sm btn-outline-secondary me-1 edit-meta-btn" data-id="${escHtml(row.idSetlist)}"><i class="bi bi-pencil"></i></button>`;
                     }
                     html += `<a href="/setlists/lib/action.php?action=generateSetlistPdf&idSetlist=${escHtml(row.idSetlist)}" target="_blank" class="btn btn-sm btn-outline-success me-1" title="Download PDF"><i class="bi bi-file-earmark-pdf"></i></a>`;
+                    if (CAN_EDIT) {
+                        html += `<button class="btn btn-sm btn-outline-info me-1 send-setlist-btn" data-id="${escHtml(row.idSetlist)}" data-name="${escHtml(row.setlistName)}" title="Send to Members"><i class="bi bi-envelope"></i></button>`;
+                    }
                     if (CAN_DELETE) {
                         html += `<button class="btn btn-sm btn-outline-danger delete-btn" data-id="${escHtml(row.idSetlist)}" data-name="${escHtml(row.setlistName)}"><i class="bi bi-trash"></i></button>`;
                     }
@@ -259,6 +304,102 @@ $canDelete = in_array('setlists.delete', $_SESSION['user']['permissions']);
                 toastr.success('Setlist deleted.');
             },
             error: ajaxErrorHandler
+        });
+    });
+
+    // ── Send Setlist Modal ─────────────────────────────────────────
+    let sendSetlistMemberTs = null;
+
+    function loadMemberOptionsForSetlist(ts, selectedValues) {
+        $.ajax({
+            type: 'POST', url: '/users/lib/action.php',
+            data: { action: 'getAllUsers' },
+            dataType: 'JSON',
+            success: function (r) {
+                (r.data || []).forEach(function(o) { ts.addOption(o); });
+                if (selectedValues) ts.setValue(selectedValues);
+            }
+        });
+    }
+
+    $(document).on('click', '.send-setlist-btn', function () {
+        const btn = $(this);
+        const id = btn.data('id');
+        const name = btn.data('name');
+        $('#sendSetlistId').val(id);
+        $('#sendSetlistName').text(name);
+        $('#sendSetlistEmailBody').val('');
+        $('#sendSetlistToAllMembers').prop('checked', false);
+        $('#sendSetlistMemberSelect').closest('.mb-3').removeClass('d-none');
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('sendSetlistModal')).show();
+    });
+
+    $('#sendSetlistModal').on('shown.bs.modal', function () {
+        $('#sendSetlistEmailBody').focus();
+        if (sendSetlistMemberTs) { sendSetlistMemberTs.destroy(); sendSetlistMemberTs = null; }
+        sendSetlistMemberTs = new TomSelect('#sendSetlistMemberSelect', {
+            plugins: ['remove_button'],
+            create: false,
+            maxItems: null,
+        });
+        loadMemberOptionsForSetlist(sendSetlistMemberTs, []);
+    });
+
+    $('#sendSetlistModal').on('hidden.bs.modal', function () {
+        if (sendSetlistMemberTs) { sendSetlistMemberTs.destroy(); sendSetlistMemberTs = null; }
+    });
+
+    $('#sendSetlistToAllMembers').on('change', function () {
+        if ($(this).prop('checked')) {
+            $('#sendSetlistMemberSelect').closest('.mb-3').addClass('d-none');
+        } else {
+            $('#sendSetlistMemberSelect').closest('.mb-3').removeClass('d-none');
+        }
+    });
+
+    $('#sendSetlistEmailBody').on('input', function () {
+        var body = $(this).val();
+        if (body) {
+            $('#sendSetlistEmailPreview').removeClass('d-none');
+            $('#sendSetlistEmailPreviewContent').text(body);
+        } else {
+            $('#sendSetlistEmailPreview').addClass('d-none');
+        }
+    });
+
+    $('#sendSetlistBtn').on('click', function () {
+        const idSetlist = $('#sendSetlistId').val();
+        if (!idSetlist) return;
+
+        const sendToAll = $('#sendSetlistToAllMembers').prop('checked');
+        const memberIds = sendToAll ? [] : (sendSetlistMemberTs ? sendSetlistMemberTs.getValue() : []);
+        const emailBody = $('#sendSetlistEmailBody').val().trim();
+
+        if (!sendToAll && (!memberIds || memberIds.length === 0)) {
+            toastr.error('Please select recipients or check "Send to all members".');
+            return;
+        }
+
+        const btn = $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
+
+        $.ajax({
+            type: 'POST', url: 'lib/action.php',
+            data: {
+                action: 'sendSetlistToMembers',
+                idSetlist: idSetlist,
+                memberIds: JSON.stringify(memberIds),
+                sendToAll: sendToAll,
+                emailBody: emailBody
+            },
+            dataType: 'JSON',
+            success: function (r) {
+                bootstrap.Modal.getInstance(document.getElementById('sendSetlistModal')).hide();
+                toastr.success('Setlist sent to ' + r.sentCount + ' member(s).');
+            },
+            error: ajaxErrorHandler,
+            complete: function() {
+                btn.prop('disabled', false).html('<i class="bi bi-envelope"></i> Send Email');
+            }
         });
     });
     </script>

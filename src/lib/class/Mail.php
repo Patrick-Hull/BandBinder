@@ -26,25 +26,26 @@ class Mail
 {
     /**
      * Send an email using the configured protocol via PHPMailer.
-     * 
+     *
      * @param string $to Recipient email address
      * @param string $subject Email subject
      * @param string $body Email body (HTML)
      * @param array $headers Optional headers (e.g., ['CC' => 'cc@example.com'])
+     * @param array $attachments Optional attachments (e.g., ['path' => '/path/to/file.pdf', 'name' => 'file.pdf'])
      * @return bool True on success, false on failure
      */
-    public static function send($to, $subject, $body, $headers = [])
+    public static function send($to, $subject, $body, $headers = [], $attachments = [])
     {
         $config = self::getConfig();
-        
+
         if (!$config) {
             error_log('Mail configuration not found');
             return false;
         }
-        
+
         try {
             $mail = new PHPMailer(true);
-            
+
             $protocol = $config['protocol'] ?? 'smtp';
             if ($protocol === 'mailgun') {
                 $mail->isMailgun();
@@ -62,17 +63,23 @@ class Mail
                 $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
                 $mail->SMTPAutoTLS = false;
             }
-            
-            $mail->setFrom($config['from_email'] ?? 'no-reply@example.com', 
+
+            $mail->setFrom($config['from_email'] ?? 'no-reply@example.com',
                           $config['from_name'] ?? 'BandBinder');
             $mail->addAddress($to);
             $mail->Subject = $subject;
             $mail->msgHTML($body);
-            
+
             foreach ($headers as $key => $value) {
                 $mail->addCustomHeader($key, $value);
             }
-            
+
+            foreach ($attachments as $attachment) {
+                if (!empty($attachment['path']) && file_exists($attachment['path'])) {
+                    $mail->addAttachment($attachment['path'], $attachment['name'] ?? '');
+                }
+            }
+
             $mail->send();
             return true;
         } catch (Exception $e) {
