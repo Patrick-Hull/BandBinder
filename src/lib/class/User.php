@@ -114,7 +114,11 @@ class User
     {
         $db = new DatabaseManager();
         $id = Helper::UUIDv4();
-        $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+        $hashedPassword = null;
+        
+        if (!empty($password)) {
+            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
+        }
 
         $sql = "INSERT INTO `users` (`id`, `username`, `password`, `email`, `nameShort`, `nameFirst`, `nameLast`) VALUES (?, ?, ?, ?, ?, ?, ?)";
         $db->query($sql, [$id, $username, $hashedPassword, $email, $nameShort, $nameFirst, $nameLast]);
@@ -244,14 +248,87 @@ class User
     {
         $sql = 'UPDATE `users` SET `totpEnabled` = 1, `totpSecret` = ? WHERE id = ?;';
         $args = [$totpSecret, $this->getIdUser()];
+        $this->data['totpEnabled'] = 1;
+        $this->data['totpSecret'] = $totpSecret;
         return $this->db->query($sql, $args);
     }
 
     public function checkTotpCodeProvided(string $totpCode): bool
     {
-
+        $issuer = 'BandBinder';
+        $label = $this->getUsername();
         $otp = TOTP::createFromSecret($this->getTotpSecret());
+        $otp = $otp->withIssuer($issuer)->withLabel($label);
         return $otp->verify($totpCode);
+    }
+
+    public function disableTOTP(): void
+    {
+        $sql = 'UPDATE `users` SET `totpEnabled` = 0, `totpSecret` = NULL WHERE id = ?;';
+        $this->db->query($sql, [$this->getIdUser()]);
+    }
+
+    public function hasPassword(): bool
+    {
+        return !empty($this->data['password']);
+    }
+
+    public function sendWelcomeEmail(): bool
+    {
+        $db = new DatabaseManager();
+        
+        $result = $db->query("SELECT config_value FROM site_config WHERE config_key = 'mail_settings'");
+        if (!$result || count($result) === 0) {
+            return false;
+        }
+        
+        $mailConfig = json_decode($result[0]['config_value'], true);
+        if (!$mailConfig) {
+            return false;
+        }
+
+        $token = bin2hex(random_bytes(32));
+        $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
+        
+        $tokenId = Helper::UUIDv4();
+        $db->query(
+            "INSERT INTO `password_reset_tokens` (`id`, `user_id`, `token`, `expires_at`) VALUES (?, ?, ?, ?)",
+            [$tokenId, $this->getIdUser(), $token, $expiresAt]
+        );
+
+        $baseUrl = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'];
+        $resetUrl = $baseUrl . '/set-password.php?token=' . $token;
+
+        $subject = 'Welcome to BandBinder - Set Your Password';
+        $body = '
+        <html>
+        <head>
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .card { background: #f8f9fa; border-radius: 8px; padding: 30px; margin-top: 20px; }
+                .btn { display: inline-block; padding: 12px 24px; background: #0d6efd; color: #fff; text-decoration: none; border-radius: 6px; margin-top: 20px; }
+                .footer { margin-top: 30px; font-size: 12px; color: #666; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h2>Welcome to BandBinder!</h2>
+                <p>Hello ' . htmlspecialchars($this->getNameShort() ?: $this->getUsername()) . ',</p>
+                <p>An account has been created for you on BandBinder. To get started, please set your password by clicking the button below:</p>
+                <div class="card">
+                    <a href="' . $resetUrl . '" class="btn">Set Your Password</a>
+                </div>
+                <p>This link will expire in 24 hours.</p>
+                <div class="footer">
+                    <p>If you did not expect this email, please ignore it.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ';
+
+        return Mail::send($this->getEmail(), $subject, $body);
     }
 
 }

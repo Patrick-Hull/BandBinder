@@ -49,6 +49,7 @@ function navLink(string $href, string $label, string $currentPath): string {
                 if (in_array('siteconfig', $_SESSION['user']['permissions'])) {
                     echo navLink('/site/', 'Site Management', $currentPath);
                 }
+                echo navLink('/profile/', 'Profile', $currentPath);
                 ?>
                 <li class="nav-item">
                     <a class="nav-link" href="/logout.php">Logout</a>

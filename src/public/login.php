@@ -1,6 +1,15 @@
 <?php
 require_once __DIR__ . '/../lib/util_all.php';
 $pageName = "Login";
+
+$passwordResetEnabled = false;
+try {
+    $db = new DatabaseManager();
+    $result = $db->query("SELECT config_value FROM site_config WHERE config_key = 'password_reset_enabled'");
+    $passwordResetEnabled = $result && count($result) > 0 && $result[0]['config_value'] === '1';
+} catch (Exception $e) {
+    $passwordResetEnabled = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -113,7 +122,33 @@ $pageName = "Login";
                 </button>
             </div>
 
+            <?php if($passwordResetEnabled): ?>
+            <div class="mt-3 text-center">
+                <a href="/forgot-password.php" class="text-decoration-none small">Forgot Password?</a>
+            </div>
+            <?php endif; ?>
+
         </form>
+
+        <!-- 2FA Modal -->
+        <div class="modal fade" id="twoFactorModal" tabindex="-1" data-bs-backdrop="static">
+            <div class="modal-dialog modal-sm">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Two-Factor Authentication</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="small">Enter the 6-digit code from your authenticator app.</p>
+                        <input type="text" class="form-control text-center" id="totpCode" 
+                               placeholder="000000" maxlength="6" autocomplete="one-time-code">
+                        <input type="hidden" id="tempUserId">
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary w-100" id="verifyTotpBtn">Verify</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div class="login-footer">BandBinder &copy; <?php echo date('Y'); ?></div>
@@ -122,6 +157,20 @@ $pageName = "Login";
 <?php require_once __DIR__ . '/../lib/html_footer/all.php'; ?>
 
 <script>
+    let passwordResetEnabled = <?php echo $passwordResetEnabled ? 'true' : 'false'; ?>;
+    let twoFactorMandatory = false;
+
+    $(function() {
+        $.ajax({
+            type: "POST",
+            url: "lib/check-login-config.php",
+            dataType: "JSON",
+            success: function(resp) {
+                twoFactorMandatory = (resp.two_factor_mandatory == '1' || resp.two_factor_mandatory == 1);
+            }
+        });
+    });
+
     $("#loginForm").on("submit", function (e) {
         e.preventDefault();
         const btn = $("#loginBtn");
@@ -132,8 +181,15 @@ $pageName = "Login";
             url: $(this).attr("action"),
             data: $(this).serialize(),
             dataType: "JSON",
-            success: function () {
-                window.location.href = "/";
+            success: function (resp) {
+                if (resp.requiresTwoFactor) {
+                    $("#tempUserId").val(resp.userId);
+                    btn.prop("disabled", false).text("Sign In");
+                    bootstrap.Modal.getOrCreateInstance(document.getElementById('twoFactorModal')).show();
+                    $("#totpCode").focus();
+                } else {
+                    window.location.href = "/";
+                }
             },
             error: function (xhr) {
                 btn.prop("disabled", false).text("Sign In");
@@ -141,6 +197,44 @@ $pageName = "Login";
                 toastr.error(r?.message || "Login failed. Please try again.");
             }
         });
+    });
+
+    $("#verifyTotpBtn").on("click", function () {
+        const btn = $(this);
+        const code = $("#totpCode").val().trim();
+        
+        if (!code || code.length !== 6) {
+            toastr.error("Please enter a valid 6-digit code.");
+            return;
+        }
+        
+        btn.prop("disabled", true).html('<span class="spinner-border spinner-border-sm me-2"></span>Verifying…');
+        
+        $.ajax({
+            type: "POST",
+            url: "lib/verify-totp.php",
+            data: { userId: $("#tempUserId").val(), code: code },
+            dataType: "JSON",
+            success: function () {
+                window.location.href = "/";
+            },
+            error: function (xhr) {
+                btn.prop("disabled", false).text("Verify");
+                const r = xhr.responseJSON;
+                toastr.error(r?.message || "Invalid code. Please try again.");
+                $("#totpCode").val("").focus();
+            }
+        });
+    });
+
+    $("#totpCode").on("keyup", function(e) {
+        if (e.key === "Enter") {
+            $("#verifyTotpBtn").click();
+        }
+    });
+
+    $("#twoFactorModal").on("shown.bs.modal", function() {
+        $("#totpCode").val("").focus();
     });
 </script>
 </body>

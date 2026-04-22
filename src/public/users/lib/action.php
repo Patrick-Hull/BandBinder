@@ -44,6 +44,7 @@ switch($action) {
                 'nameShort'     => $user->getNameShort() ?? '',
                 'nameFirst'     => $user->getNameFirst() ?? '',
                 'nameLast'      => $user->getNameLast() ?? '',
+                'hasPassword'   => $user->hasPassword(),
                 'instruments'   => implode(', ', $instrumentNames),
                 'userTypeName'  => $userTypeName,
             ];
@@ -121,9 +122,9 @@ switch($action) {
         $nameFirst = trim($_POST['nameFirst'] ?? '') ?: null;
         $nameLast  = trim($_POST['nameLast'] ?? '') ?: null;
 
-        if($username === '' || $password === '' || $email === ''){
+        if($username === '' || $email === ''){
             http_response_code(400);
-            echo json_encode(['message' => 'Username, password, and email are required']);
+            echo json_encode(['message' => 'Username and email are required']);
             exit;
         }
 
@@ -292,6 +293,37 @@ switch($action) {
 
         http_response_code(200);
         echo json_encode(['success' => true]);
+        break;
+
+    case 'sendWelcomeEmail':
+        if(!in_array('users.edit', $_SESSION['user']['permissions'])){
+            http_response_code(403);
+            echo json_encode(['message' => 'Permission denied']);
+            exit;
+        }
+
+        $idUser = trim($_POST['idUser'] ?? '');
+        if($idUser === ''){
+            http_response_code(400);
+            echo json_encode(['message' => 'User ID is required']);
+            exit;
+        }
+
+        try {
+            $user = new User($idUser);
+            $sent = $user->sendWelcomeEmail();
+            if ($sent) {
+                http_response_code(200);
+                echo json_encode(['success' => true, 'message' => 'Welcome email sent successfully.']);
+            } else {
+                http_response_code(500);
+                echo json_encode(['message' => 'Failed to send welcome email. Check mail configuration.']);
+            }
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['message' => $e->getMessage()]);
+            exit;
+        }
         break;
 
     // ── Instruments list (for user assignment) ─────────────────────────
