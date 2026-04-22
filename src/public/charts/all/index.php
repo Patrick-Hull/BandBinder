@@ -96,6 +96,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         <input type="file" id="bulkUploadInput" multiple accept=".pdf" class="d-none">
                     <?php endif; ?>
 
+                    <div class="mb-3">
+                        <label for="categoryFilter" class="form-label d-inline me-2">Filter by Category:</label>
+                        <select id="categoryFilter" class="form-control form-control-sm d-inline-block" style="width:auto;">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+
                     <table id="chartTable" class="table table-striped table-bordered table-sm"></table>
                 </div>
             </div>
@@ -212,6 +219,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     <div class="mb-3">
                         <label for="editChartNotes" class="form-label">Notes</label>
                         <textarea class="form-control" id="editChartNotes" rows="3"></textarea>
+                    </div>
+
+                    <!-- Categories section -->
+                    <div class="mb-3">
+                        <label for="editCategorySelect" class="form-label">Categories</label>
+                        <select id="editCategorySelect" class="form-control" multiple placeholder="Select categories..."></select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple categories.</div>
                     </div>
 
                     <!-- Master PDF section -->
@@ -503,6 +517,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         let createArrangerTs = null;
         let editArtistTs    = null;
         let editArrangerTs  = null;
+        let editCategoryTs  = null;
 
         function ajaxErrorHandler(jqXHR) {
             toastr.error(jqXHR.responseJSON?.message || "An unexpected error occurred.");
@@ -559,26 +574,58 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             return '★'.repeat(n) + '☆'.repeat(5 - n);
         }
 
+        function escHtml(str) {
+            if (!str) return '';
+            return $('<div>').text(str).html();
+        }
+
+        function isLightColour(hex) {
+            if (!hex || hex.length < 7) return true;
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+        }
+
         // ── DataTable ────────────────────────────────────────────
         function fetchData() {
             if (table) {
                 table.ajax.reload();
             } else {
                 const columns = [
-                    {data: 'chartName',    title: 'Name'},
-                    {data: 'artistName',   title: 'Artist'},
+                    {data: 'chartName', title: 'Name'},
+                    {data: 'artistName', title: 'Artist'},
                     {data: 'arrangerName', title: 'Arranger'},
-                    {data: 'bpm',          title: 'BPM'},
-                    {data: 'duration',     title: 'Duration', render: function(d) { return d ? Math.floor(d/60)+':'+String(d%60).padStart(2,'0') : ''; }},
-                    {data: 'chartKey',     title: 'Key'},
-                    {data: 'hasPdf',       title: 'PDF', render: function(d) { return d ? '<i class="bi bi-file-earmark-pdf text-danger"></i>' : ''; }},
-                    {data: null, title: '', defaultContent: '', render: function(d, t, row) {
-                        let html = '';
-                        if (row.audioPath) {
-                            html += `<button class="btn btn-sm btn-outline-success play-audio-btn" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
+                    {data: 'bpm', title: 'BPM'},
+                    {
+                        data: 'duration', title: 'Duration', render: function (d) {
+                            return d ? Math.floor(d / 60) + ':' + String(d % 60).padStart(2, '0') : '';
                         }
-                        return html;
-                    }},
+                    },
+                    {data: 'chartKey', title: 'Key'},
+                    {
+                        data: 'categories', title: 'Category', render: function (d) {
+                            if (!d || !d.length) return '<span class="text-muted">—</span>';
+                            return d.map(function (c) {
+                                var style = c.categoryColour ? 'background-color:' + c.categoryColour + ';color:' + (isLightColour(c.categoryColour) ? '#000' : '#fff') + ';' : '';
+                                return '<span class="badge me-1" style="' + style + '">' + escHtml(c.categoryName) + '</span>';
+                            }).join('');
+                        }
+                    },
+                    {
+                        data: 'hasPdf', title: 'PDF', render: function (d) {
+                            return d ? '<i class="bi bi-file-earmark-pdf text-danger"></i>' : '';
+                        }
+                    },
+                    {
+                        data: null, title: '', defaultContent: '', render: function (d, t, row) {
+                            let html = '';
+                            if (row.audioPath) {
+                                html += `<button class="btn btn-sm btn-outline-success play-audio-btn" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
+                            }
+                            return html;
+                        }
+                    },
                 ];
                 const columnDefs = [
                     {targets: 0, orderable: true, searchable: true},
@@ -588,13 +635,14 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {targets: 4, orderable: false, searchable: false},
                     {targets: 5, orderable: true, searchable: true},
                     {targets: 6, orderable: false, searchable: false},
-                    {targets: 7, orderable: false, searchable: false},
+                    {targets: 7, orderable: true, searchable: true},
+                    {targets: 8, orderable: false, searchable: false},
                 ];
 
                 if (canEdit || canDelete) {
                     columns.push({data: null, defaultContent: ''});
                     columnDefs.push({
-                        targets: 8,
+                        targets: 9,
                         orderable: false,
                         searchable: false,
                         title: '',
@@ -639,8 +687,20 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     ajax: {
                         url: 'lib/action.php',
                         type: 'POST',
-                        data: function (d) { d.action = "getCharts"; },
-                        error: ajaxErrorHandler
+                        data: function (d) {
+                            d.action = "getCharts";
+                            var catFilter = $('#categoryFilter').val();
+                            if (catFilter) d.categoryFilter = catFilter;
+                        },
+                        error: ajaxErrorHandler,
+                        dataSrc: function (json) {
+                            if (json.categoriesMap) {
+                                $.each(json.data, function(i, row) {
+                                    row.categories = json.categoriesMap[row.idChart] || [];
+                                });
+                            }
+                            return json.data;
+                        }
                     },
                     columns: columns,
                     columnDefs: columnDefs,
@@ -650,8 +710,25 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     responsive: true,
                 });
             }
-        }
 
+            // Load category filter options
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: {action: 'getCategoriesList'},
+                dataType: 'JSON',
+                success: function (r) {
+                    var sel = $('#categoryFilter');
+                    (r.data || []).forEach(function (o) {
+                        sel.append('<option value="' + o.value + '">' + escHtml(o.text) + '</option>');
+                    });
+                }
+            });
+
+            // Category filter change handler
+            $('#categoryFilter').on('change', function () {
+                table.ajax.reload();
+            });
+        }
         // ── TomSelect helpers ────────────────────────────────────
         function buildArtistTsConfig(selectId) {
             return {
@@ -810,16 +887,46 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
             if (editArtistTs)  { editArtistTs.destroy();  editArtistTs = null; }
             if (editArrangerTs){ editArrangerTs.destroy(); editArrangerTs = null; }
+            if (editCategoryTs){ editCategoryTs.destroy(); editCategoryTs = null; }
 
             editArtistTs   = new TomSelect('#editArtistSelect',   buildArtistTsConfig());
             editArrangerTs = new TomSelect('#editArrangerSelect',  buildArrangerTsConfig());
+            editCategoryTs = new TomSelect('#editCategorySelect', {
+                plugins: ['remove_button'],
+                create: false,
+                maxItems: null,
+            });
             loadArtistOptions(editArtistTs,   row.idArtist   || null);
             loadArrangerOptions(editArrangerTs, row.idArranger || null);
+            loadCategoryOptions(editCategoryTs, row.idChart);
         });
+
+        function loadCategoryOptions(ts, idChart) {
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: { action: 'getChartCategories', idChart: idChart },
+                dataType: 'JSON',
+                success: function(r) {
+                    // First load all available categories
+                    $.ajax({
+                        type: 'POST', url: 'lib/action.php',
+                        data: { action: 'getCategoriesList' },
+                        dataType: 'JSON',
+                        success: function(allR) {
+                            (allR.data || []).forEach(function(o) { ts.addOption(o); });
+                            // Then set selected categories
+                            var selectedIds = (r.data || []).map(function(c) { return c.idCategory; });
+                            ts.setValue(selectedIds);
+                        }
+                    });
+                }
+            });
+        }
 
         $('#editChartModal').on('hidden.bs.modal', function () {
             if (editArtistTs)  { editArtistTs.destroy();  editArtistTs = null; }
             if (editArrangerTs){ editArrangerTs.destroy(); editArrangerTs = null; }
+            if (editCategoryTs){ editCategoryTs.destroy(); editCategoryTs = null; }
             currentEditRow = null;
         });
 
@@ -846,9 +953,22 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 dataType: 'JSON',
                 success: function () {
                     if (pdfFile) hideProgress('#editChartPdfProgress');
-                    bootstrap.Modal.getInstance(document.getElementById('editChartModal')).hide();
-                    fetchData();
-                    toastr.success('Chart updated successfully.');
+                    // Save categories
+                    var categoryIds = editCategoryTs ? editCategoryTs.getValue() : [];
+                    $.ajax({
+                        type: 'POST', url: 'lib/action.php',
+                        data: {
+                            action: 'setChartCategories',
+                            idChart: $('#editChartId').val(),
+                            categoryIds: JSON.stringify(categoryIds)
+                        },
+                        dataType: 'JSON',
+                        complete: function() {
+                            bootstrap.Modal.getInstance(document.getElementById('editChartModal')).hide();
+                            fetchData();
+                            toastr.success('Chart updated successfully.');
+                        }
+                    });
                 },
                 error: function (xhr) {
                     if (pdfFile) hideProgress('#editChartPdfProgress');
@@ -1382,10 +1502,6 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 }
             });
         });
-
-        function escHtml(str) {
-            return $('<div>').text(str || '').html();
-        }
 
         // ── Bulk Upload PDFs ─────────────────────────────────────
         $('#bulkUploadBtn').on('click', function () {

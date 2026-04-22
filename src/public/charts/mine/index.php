@@ -26,6 +26,12 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
             <div class="row">
                 <div class="col-12 col-md-11 col-xl-10 mx-auto">
                     <h1>My Charts</h1>
+                    <div class="mb-3">
+                        <label for="categoryFilter" class="form-label d-inline me-2">Filter by Category:</label>
+                        <select id="categoryFilter" class="form-control form-control-sm d-inline-block" style="width:auto;">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
                     <table id="myChartTable" class="table table-striped table-bordered table-sm"></table>
                 </div>
             </div>
@@ -156,6 +162,19 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
             return '<span style="color:#f5a623">' + '★'.repeat(n) + '</span>' + '☆'.repeat(5 - n);
         }
 
+        function escHtml(str) {
+            if (!str) return '';
+            return $('<div>').text(str).html();
+        }
+
+        function isLightColour(hex) {
+            if (!hex || hex.length < 7) return true;
+            var r = parseInt(hex.slice(1, 3), 16);
+            var g = parseInt(hex.slice(3, 5), 16);
+            var b = parseInt(hex.slice(5, 7), 16);
+            return (r * 299 + g * 587 + b * 114) / 1000 > 128;
+        }
+
         // ── DataTable ────────────────────────────────────────────
         function fetchData() {
             if (table) {
@@ -169,8 +188,20 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                     ajax: {
                         url: 'lib/action.php',
                         type: 'POST',
-                        data: function (d) { d.action = "getMyCharts"; },
-                        error: ajaxErrorHandler
+                        data: function (d) {
+                            d.action = "getMyCharts";
+                            var catFilter = $('#categoryFilter').val();
+                            if (catFilter) d.categoryFilter = catFilter;
+                        },
+                        error: ajaxErrorHandler,
+                        dataSrc: function(json) {
+                            if (json.categoriesMap) {
+                                $.each(json.data, function(i, row) {
+                                    row.categories = json.categoriesMap[row.idChart] || [];
+                                });
+                            }
+                            return json.data;
+                        }
                     },
                     columns: [
                         {data: 'chartName',    title: 'Name'},
@@ -178,6 +209,13 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         {data: 'arrangerName', title: 'Arranger'},
                         {data: 'chartKey',     title: 'Key'},
                         {data: 'bpm',          title: 'BPM'},
+                        {data: 'categories', title: 'Category', render: function(d) {
+                            if (!d || !d.length) return '<span class="text-muted">—</span>';
+                            return d.map(function(c) {
+                                var style = c.categoryColour ? 'background-color:' + c.categoryColour + ';color:' + (isLightColour(c.categoryColour) ? '#000' : '#fff') + ';' : '';
+                                return '<span class="badge me-1" style="' + style + '">' + escHtml(c.categoryName) + '</span>';
+                            }).join('');
+                        }},
                         {data: 'myRating',     title: 'My Rating', render: function (d) { return starsDisplay(d); }},
                         {data: null,           title: '', defaultContent: ''},
                     ],
@@ -187,8 +225,9 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         {targets: 2, orderable: true, searchable: true},
                         {targets: 3, orderable: true, searchable: true},
                         {targets: 4, orderable: true, searchable: false},
-                        {targets: 5, orderable: true, searchable: false},
-                        {targets: 6, orderable: false, searchable: false,
+                        {targets: 5, orderable: true, searchable: true},
+                        {targets: 6, orderable: true, searchable: false},
+                        {targets: 7, orderable: false, searchable: false,
                             render: function (d, t, row) {
                                 let html = '<button class="btn btn-sm btn-outline-primary view-chart-btn me-1"><i class="bi bi-eye"></i> View</button>';
                                 if (row.myPdfPath) {
@@ -207,6 +246,24 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                     responsive: true,
                 });
             }
+
+            // Load category filter options
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: { action: 'getCategoriesList' },
+                dataType: 'JSON',
+                success: function(r) {
+                    var sel = $('#categoryFilter');
+                    (r.data || []).forEach(function(o) {
+                        sel.append('<option value="' + o.value + '">' + escHtml(o.text) + '</option>');
+                    });
+                }
+            });
+
+            // Category filter change handler
+            $('#categoryFilter').on('change', function() {
+                table.ajax.reload();
+            });
         }
 
         // ── Open view modal ──────────────────────────────────────
