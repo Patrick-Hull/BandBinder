@@ -82,8 +82,9 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                         </div>
                     </div>
                     <div class="mb-3">
-                        <label for="createPassword" class="form-label">Password <span class="text-danger">*</span></label>
-                        <input type="password" class="form-control" id="createPassword" autocomplete="new-password">
+                        <label for="createPassword" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="createPassword" autocomplete="new-password" placeholder="Leave blank - user will set their own password">
+                        <small class="text-muted">Optional. Leave blank to send a welcome email for the user to set their own password.</small>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -447,6 +448,7 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                 { data: 'nameShort', title: 'Name' },
                 { data: 'username', title: 'Username' },
                 { data: 'email', title: 'Email' },
+                { data: 'hasPassword', title: 'Password' },
                 { data: 'instruments', title: 'Instruments' },
                 { data: 'userTypeName', title: 'User Type' },
                 { data: null, defaultContent: '', title: '' },
@@ -455,22 +457,44 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                 { data: 'nameShort', title: 'Name' },
                 { data: 'username', title: 'Username' },
                 { data: 'email', title: 'Email' },
+                { data: 'hasPassword', title: 'Password' },
                 { data: 'instruments', title: 'Instruments' },
                 { data: 'userTypeName', title: 'User Type' },
               ];
 
         const userColumnDefs = canEditUser
             ? [
-                { targets: 5, orderable: false, searchable: false,
+                { targets: 3, orderable: false, searchable: false,
+                    render: function (data, type, row) {
+                        if (data === true || data === 1 || data === '1') {
+                            return '<span class="badge bg-success">Has Password</span>';
+                        } else {
+                            return '<span class="badge bg-warning text-dark">No Password</span>';
+                        }
+                    }
+                },
+                { targets: 6, orderable: false, searchable: false,
                     render: function (data, type, row) {
                         let html = '';
+                        if ((row.hasPassword === false || row.hasPassword === 0 || row.hasPassword === '0') && canEditUser) {
+                            html += '<button class="btn btn-sm btn-outline-primary send-welcome-btn me-1" title="Send Welcome Email"><i class="bi bi-envelope"></i> Welcome</button>';
+                        }
                         if (canEditUser)   html += '<button class="btn btn-sm btn-outline-secondary edit-user-btn me-1"><i class="bi bi-pencil"></i> Edit</button>';
                         if (canDeleteUser) html += '<button class="btn btn-sm btn-outline-danger delete-user-btn"><i class="bi bi-trash"></i> Delete</button>';
                         return html;
                     }
                 },
               ]
-            : [];
+            : [{
+                targets: 3, orderable: false, searchable: false,
+                render: function (data, type, row) {
+                    if (data === true || data === 1 || data === '1') {
+                        return '<span class="badge bg-success">Has Password</span>';
+                    } else {
+                        return '<span class="badge bg-warning text-dark">No Password</span>';
+                    }
+                }
+              }];
 
         const fetchUsers = () => {
             if (userTable) {
@@ -494,6 +518,34 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                 setTimeout(() => { userTable.draw(); }, 200);
             }
         };
+
+
+        // ════════════════════════════════════════════════════════════════
+        // Send Welcome Email
+        // ════════════════════════════════════════════════════════════════
+
+        $('#userTable').on('click', '.send-welcome-btn', function () {
+            const btn = $(this);
+            const row = userTable.row($(this).closest('tr')).data();
+            if (!row) return;
+            
+            btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span>');
+            
+            $.ajax({
+                type: 'POST',
+                url: 'lib/action.php',
+                data: { action: 'sendWelcomeEmail', idUser: row.idUser },
+                dataType: 'JSON',
+                success: function (resp) {
+                    toastr.success(resp.message || 'Welcome email sent successfully.');
+                    fetchUsers();
+                },
+                error: function (xhr) {
+                    ajaxErrorHandler(xhr);
+                    btn.prop('disabled', false).html('<i class="bi bi-envelope"></i> Welcome');
+                }
+            });
+        });
 
 
         // ════════════════════════════════════════════════════════════════
@@ -785,8 +837,8 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
             const password = $('#createPassword').val();
             const email    = $('#createEmail').val().trim();
 
-            if (!username || !password || !email) {
-                toastr.error('Username, password, and email are required.');
+            if (!username || !email) {
+                toastr.error('Username and email are required.');
                 return;
             }
 

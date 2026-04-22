@@ -18,6 +18,10 @@ class Auth
         }
         $row = $rows[0];
 
+        if(empty($row['password'])){
+            throw new Exception("No password set. Please set your password using the link in your welcome email.");
+        }
+
         if(password_verify($password, $row['password'])){
             $user = New User($row['id']);
         } else {

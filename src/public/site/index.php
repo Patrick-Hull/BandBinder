@@ -25,6 +25,9 @@ $canManageSiteConfig = in_array('siteconfig', $_SESSION['user']['permissions']);
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="mail-tab" data-bs-toggle="tab" data-bs-target="#mailConfig" type="button" role="tab">Mail Configuration</button>
                         </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#securityConfig" type="button" role="tab">Security</button>
+                        </li>
                     </ul>
                     
                     <div class="tab-content mt-3" id="siteConfigContent">
@@ -96,6 +99,31 @@ $canManageSiteConfig = in_array('siteconfig', $_SESSION['user']['permissions']);
                                 <div class="mt-3">
                                     <button type="submit" class="btn btn-primary">Save Configuration</button>
                                     <button type="button" class="btn btn-outline-secondary ms-2" id="testSmtpBtn">Send Test Email</button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <div class="tab-pane fade" id="securityConfig" role="tabpanel">
+                            <h5 class="mb-3">Security Settings</h5>
+                            <form id="securityConfigForm">
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="passwordResetEnabled">
+                                        <label class="form-check-label" for="passwordResetEnabled">Enable Password Reset</label>
+                                    </div>
+                                    <small class="text-muted">Allow users to reset their password from the login page using email verification.</small>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="twoFactorMandatory">
+                                        <label class="form-check-label" for="twoFactorMandatory">Require Two-Factor Authentication</label>
+                                    </div>
+                                    <small class="text-muted">When enabled, all users will be required to set up and use 2FA (TOTP) to log in.</small>
+                                </div>
+
+                                <div class="mt-3">
+                                    <button type="submit" class="btn btn-primary">Save Security Settings</button>
                                 </div>
                             </form>
                         </div>
@@ -196,6 +224,44 @@ $canManageSiteConfig = in_array('siteconfig', $_SESSION['user']['permissions']);
                 },
                 complete: function() {
                     btn.prop('disabled', false).text('Send Test Email');
+                }
+            });
+        });
+
+        // Load security settings
+        $.ajax({
+            type: 'POST',
+            url: 'lib/action.php',
+            data: { action: 'getSecurityConfig' },
+            dataType: 'JSON',
+            success: function(resp) {
+                if (resp.success && resp.config) {
+                    $('#passwordResetEnabled').prop('checked', resp.config.password_reset_enabled === '1' || resp.config.password_reset_enabled === 1);
+                    $('#twoFactorMandatory').prop('checked', resp.config.two_factor_mandatory === '1' || resp.config.two_factor_mandatory === 1);
+                }
+            },
+            error: function(xhr) {
+                toastr.error('Failed to load security settings.');
+            }
+        });
+
+        // Save security settings
+        $('#securityConfigForm').on('submit', function(e) {
+            e.preventDefault();
+            const config = {
+                password_reset_enabled: $('#passwordResetEnabled').is(':checked') ? '1' : '0',
+                two_factor_mandatory: $('#twoFactorMandatory').is(':checked') ? '1' : '0'
+            };
+            $.ajax({
+                type: 'POST',
+                url: 'lib/action.php',
+                data: { action: 'updateSecurityConfig', config: config },
+                dataType: 'JSON',
+                success: function() {
+                    toastr.success('Security settings saved successfully.');
+                },
+                error: function(xhr) {
+                    toastr.error(xhr.responseJSON?.message || 'Failed to save security settings.');
                 }
             });
         });

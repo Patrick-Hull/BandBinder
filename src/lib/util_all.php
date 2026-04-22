@@ -49,11 +49,16 @@ $authUrl = [
     "/lib/login.php",
     "/setup.php",
     "/lib/setup.php",
+    "/forgot-password.php",
+    "/reset-password.php",
+    "/set-password.php",
+    "/lib/check-login-config.php",
+    "/lib/verify-totp.php",
 ];
 
+$requestPath = strtok($_SERVER['REQUEST_URI'], '?');
 
-
-if(in_array($_SERVER['REQUEST_URI'], $authUrl))
+if(in_array($requestPath, $authUrl))
     return;
 
 if(isset($_SESSION['user']['me'])){
