@@ -8,47 +8,37 @@ if (!isset($_SESSION['user'])) {
 
 $action = $_POST['action'] ?? $_GET['action'] ?? null;
 
-// ── PDF generation is a direct GET (no JSON header) ──────────────────────────
-if ($action === 'generateSetlistPdf') {
-    if (!in_array('setlists.view', $_SESSION['user']['permissions'])) {
-        http_response_code(403); exit;
-    }
-    $idSetlist = trim($_GET['idSetlist'] ?? $_POST['idSetlist'] ?? '');
-    if ($idSetlist === '') { http_response_code(400); exit; }
+// ── Helper functions for PDF generation (used by both webpage and email) ─────
+function fmtDur(?int $seconds): string {
+    if (!$seconds) return '';
+    return floor($seconds / 60) . ':' . str_pad($seconds % 60, 2, '0', STR_PAD_LEFT);
+}
 
-    try {
-        $setlist = new Setlist($idSetlist);
-        $sets    = $setlist->getSetsWithCharts();
-    } catch (Exception $e) {
-        http_response_code(500); echo $e->getMessage(); exit;
-    }
+function sumDur(array $charts): int {
+    return array_sum(array_column($charts, 'duration'));
+}
 
-    // Fetch categories for all charts in setlist
+function generateSetlistPdf(Setlist $setlist, ?string $outputPath = null): string {
+    $sets = $setlist->getSetsWithCharts();
+
     $chartIds = [];
     foreach ($sets as $set) {
         foreach ($set['charts'] as $c) {
             $chartIds[] = $c['idChart'];
         }
     }
-    $categoriesByChart = [];
-    if (!empty($chartIds)) {
-        $categoriesByChart = Category::GetByCharts($chartIds);
-    }
+    $categoriesByChart = !empty($chartIds) ? Category::GetByCharts($chartIds) : [];
 
-    // ── Build PDF ─────────────────────────────────────────────────────────────
-    class SetlistPdf extends \setasign\Fpdi\Fpdi
-    {
+    class SetlistPdf extends \setasign\Fpdi\Fpdi {
         private string $title;
         private string $subtitle;
 
-        public function setMeta(string $title, string $subtitle): void
-        {
-            $this->title    = $title;
+        public function setMeta(string $title, string $subtitle): void {
+            $this->title = $title;
             $this->subtitle = $subtitle;
         }
 
-        public function Header(): void
-        {
+        public function Header(): void {
             $this->SetFont('Helvetica', 'B', 14);
             $this->Cell(0, 8, $this->title, 0, 1, 'C');
             if ($this->subtitle) {
@@ -58,23 +48,11 @@ if ($action === 'generateSetlistPdf') {
             $this->Ln(2);
         }
 
-        public function Footer(): void
-        {
+        public function Footer(): void {
             $this->SetY(-12);
             $this->SetFont('Helvetica', 'I', 8);
             $this->Cell(0, 5, 'Page ' . $this->PageNo(), 0, 0, 'C');
         }
-    }
-
-    function fmtDur(?int $seconds): string
-    {
-        if (!$seconds) return '';
-        return floor($seconds / 60) . ':' . str_pad($seconds % 60, 2, '0', STR_PAD_LEFT);
-    }
-
-    function sumDur(array $charts): int
-    {
-        return array_sum(array_column($charts, 'duration'));
     }
 
     $pdf = new SetlistPdf('P', 'mm', 'A4');
@@ -86,7 +64,6 @@ if ($action === 'generateSetlistPdf') {
     );
     $pdf->AddPage();
 
-    // ── Notes ─────────────────────────────────────────────────────────────────
     $notes = trim((string)$setlist->getNotes());
     if ($notes !== '') {
         $pdf->SetFont('Helvetica', 'I', 10);
@@ -96,27 +73,23 @@ if ($action === 'generateSetlistPdf') {
         $pdf->Ln(4);
     }
 
-    // Column widths — centred in 180mm usable width
-    $colW  = [8, 55, 40, 15, 14, 14, 18]; // #, Chart, Artist/Arr, Key, BPM, Dur, Category
+    $colW = [8, 55, 40, 15, 14, 14, 18];
     $heads = ['#', 'Chart', 'Artist / Arranger', 'Key', 'BPM', 'Dur', 'Category'];
-    $totalTableW = array_sum($colW);    // 184 mm
-    $pageW = 210 - 30;                  // 180 mm usable
+    $totalTableW = array_sum($colW);
+    $pageW = 210 - 30;
     $offsetX = 15 + ($pageW - $totalTableW) / 2;
 
     $grandTotal = 0;
-
     foreach ($sets as $set) {
-        $charts   = $set['charts'];
+        $charts = $set['charts'];
         $setTotal = sumDur($charts);
         $grandTotal += $setTotal;
 
-        // Set name header
         $pdf->SetFont('Helvetica', 'B', 11);
         $pdf->SetFillColor(230, 230, 230);
         $pdf->SetX($offsetX);
         $pdf->Cell($totalTableW, 7, $set['setName'], 1, 1, 'L', true);
 
-        // Column headers
         $pdf->SetFont('Helvetica', 'B', 9);
         $pdf->SetFillColor(245, 245, 245);
         $pdf->SetX($offsetX);
@@ -125,23 +98,20 @@ if ($action === 'generateSetlistPdf') {
         }
         $pdf->Ln();
 
-        // Chart rows
         $pdf->SetFont('Helvetica', '', 9);
         $pdf->SetFillColor(255, 255, 255);
         foreach ($charts as $idx => $c) {
             $artistOrArranger = $c['displayName'];
-            $bpm      = $c['bpm']      ? (string)$c['bpm']        : '';
-            $key      = $c['chartKey'] ?? '';
-            $dur      = fmtDur($c['duration']);
+            $bpm = $c['bpm'] ? (string)$c['bpm'] : '';
+            $key = $c['chartKey'] ?? '';
+            $dur = fmtDur($c['duration']);
 
-            // Get categories for this chart
             $cats = $categoriesByChart[$c['idChart']] ?? [];
             $catStr = '';
             foreach ($cats as $cat) {
                 $catName = $cat['categoryName'];
                 $catColour = $cat['categoryColour'];
                 if ($catColour) {
-                    // Parse hex colour for FPDF
                     $r = hexdec(substr($catColour, 1, 2));
                     $g = hexdec(substr($catColour, 3, 2));
                     $b = hexdec(substr($catColour, 5, 2));
@@ -153,28 +123,26 @@ if ($action === 'generateSetlistPdf') {
             }
             $catStr = trim($catStr);
 
-            $fill     = ($idx % 2 === 0);
+            $fill = ($idx % 2 === 0);
             $pdf->SetFillColor($fill ? 255 : 248, $fill ? 255 : 248, $fill ? 255 : 248);
             $pdf->SetX($offsetX);
             $pdf->Cell($colW[0], 6, (string)($idx + 1), 1, 0, 'C', true);
-            $pdf->Cell($colW[1], 6, $c['chartName'],    1, 0, 'L', true);
-            $pdf->Cell($colW[2], 6, $artistOrArranger,  1, 0, 'L', true);
-            $pdf->Cell($colW[3], 6, $key,               1, 0, 'C', true);
-            $pdf->Cell($colW[4], 6, $bpm,               1, 0, 'C', true);
-            $pdf->Cell($colW[5], 6, $dur,               1, 0, 'C', true);
+            $pdf->Cell($colW[1], 6, $c['chartName'], 1, 0, 'L', true);
+            $pdf->Cell($colW[2], 6, $artistOrArranger, 1, 0, 'L', true);
+            $pdf->Cell($colW[3], 6, $key, 1, 0, 'C', true);
+            $pdf->Cell($colW[4], 6, $bpm, 1, 0, 'C', true);
+            $pdf->Cell($colW[5], 6, $dur, 1, 0, 'C', true);
             if ($catStr) {
-                $pdf->SetFont('Helvetica', 'B', 7);
-                $pdf->Cell($colW[6], 6, $catStr, 1, 0, 'C', true);
+                $pdf->SetFont('Helvetica', 'B', 6);
+                $pdf->MultiCell($colW[6], 5, $catStr, 1, 'C', true);
                 $pdf->SetFont('Helvetica', '', 9);
             } else {
                 $pdf->Cell($colW[6], 6, '', 1, 0, 'C', true);
+                $pdf->Ln();
             }
-            $pdf->Ln();
-            // Reset fill color back after coloured category cells
             $pdf->SetFillColor(255, 255, 255);
         }
 
-        // Set total row
         if ($setTotal > 0) {
             $pdf->SetFont('Helvetica', 'B', 9);
             $pdf->SetFillColor(220, 220, 220);
@@ -184,11 +152,9 @@ if ($action === 'generateSetlistPdf') {
             $pdf->Cell($colW[6], 6, fmtDur($setTotal), 1, 0, 'C', true);
             $pdf->Ln();
         }
-
         $pdf->Ln(4);
     }
 
-    // Grand total
     if ($grandTotal > 0) {
         $pdf->SetFont('Helvetica', 'B', 10);
         $pdf->SetFillColor(200, 200, 200);
@@ -199,8 +165,43 @@ if ($action === 'generateSetlistPdf') {
         $pdf->Ln();
     }
 
+    if (!$outputPath) {
+        $outputPath = sys_get_temp_dir() . '/setlist_' . $setlist->getIdSetlist() . '_' . time() . '.pdf';
+    }
+    $pdf->Output('F', $outputPath);
+    return $outputPath;
+}
+
+// ── PDF generation is a direct GET (no JSON header) ──────────────────────────
+if ($action === 'generateSetlistPdf') {
+    if (!in_array('setlists.view', $_SESSION['user']['permissions'])) {
+        http_response_code(403); exit;
+    }
+    $idSetlist = trim($_GET['idSetlist'] ?? $_POST['idSetlist'] ?? '');
+    if ($idSetlist === '') { http_response_code(400); exit; }
+
+    try {
+        $setlist = new Setlist($idSetlist);
+    } catch (Exception $e) {
+        http_response_code(500); echo $e->getMessage(); exit;
+    }
+
     $safeName = preg_replace('/[^a-z0-9_\-]/i', '_', $setlist->getSetlistName());
-    $pdf->Output('D', $safeName . '.pdf');
+
+    // If saving to file (for email attachments)
+    $saveTo = trim($_GET['saveTo'] ?? '');
+    if ($saveTo) {
+        $tempPath = generateSetlistPdf($setlist, $saveTo);
+        echo json_encode(['success' => true, 'path' => $tempPath]);
+        exit;
+    }
+
+// Otherwise output for download
+    $tempPath = generateSetlistPdf($setlist);
+    header('Content-Type: application/pdf');
+    header('Content-Disposition: attachment; filename="' . $safeName . '.pdf"');
+    readfile($tempPath);
+    @unlink($tempPath);
     exit;
 }
 
@@ -386,6 +387,91 @@ switch ($action) {
         }
         http_response_code(200);
         echo json_encode(['success' => true]);
+        break;
+
+    // ── Send setlist to members ─────────────────────────────────────────
+    case 'sendSetlistToMembers':
+        if (!in_array('setlists.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idSetlist = trim($_POST['idSetlist'] ?? '');
+        $sendToAll = isset($_POST['sendToAll']) && $_POST['sendToAll'] === 'true';
+        $memberIds = json_decode($_POST['memberIds'] ?? '[]', true);
+        $emailBody = trim($_POST['emailBody'] ?? '');
+
+        // Filter out empty strings
+        $memberIds = array_filter($memberIds, fn($id) => !empty($id));
+
+        if ($idSetlist === '') {
+            http_response_code(400); echo json_encode(['message' => 'Setlist ID is required']); exit;
+        }
+        try {
+            $setlist = new Setlist($idSetlist);
+            $setlistName = $setlist->getSetlistName();
+            $performedAt = $setlist->getPerformedAt();
+
+            $subject = "Setlist: {$setlistName}" . ($performedAt ? " - {$performedAt}" : "");
+            $sentCount = 0;
+
+            $db = new DatabaseManager();
+            $mailConfig = $db->query("SELECT config_value FROM site_config WHERE config_key = 'mail_settings'");
+            $mailConfigSet = !empty($mailConfig) && !empty($mailConfig[0]['config_value']);
+
+            $setlistSummary = "Setlist: {$setlistName}";
+            if ($performedAt) $setlistSummary .= "\nDate: {$performedAt}";
+            $setlistSummary .= "\n\nSongs:";
+
+            $userInstrumentMap = [];
+
+            $users = [];
+            if ($sendToAll) {
+                $users = $db->query("SELECT id, username, email FROM users");
+            } else {
+                $users = $db->query("SELECT id, username, email FROM users WHERE id IN (" . implode(',', array_fill(0, count($memberIds), '?')) . ")", $memberIds);
+            }
+
+            foreach ($users as $user) {
+                $userName = $user['username'];
+                $email = $user['email'];
+
+                if (!isset($userInstrumentMap[$user['id']])) {
+                    $userInstruments = $db->query(
+                        "SELECT it.instrumentName FROM `link__user_instrument` lui
+                         JOIN `instrument__types` it ON it.idInstrument = lui.idInstrument
+                         WHERE lui.idUser = ?",
+                        [$user['id']]
+                    );
+                    $userInstrumentMap[$user['id']] = array_column($userInstruments, 'instrumentName');
+                }
+                $instrumentList = $userInstrumentMap[$user['id']];
+
+                $body = $emailBody ? nl2br(htmlspecialchars($emailBody)) : "Please find the setlist PDF attached.";
+
+                $tempPdf = sys_get_temp_dir() . '/setlist_' . $idSetlist . '_' . $user['id'] . '_' . time() . '.pdf';
+                $attachments = [];
+                try {
+                    $tempPdf = generateSetlistPdf($setlist, $tempPdf);
+                    if (file_exists($tempPdf)) {
+                        $attachments[] = ['path' => $tempPdf, 'name' => $setlistName . '.pdf'];
+                    }
+                } catch (Exception $e) {
+                    error_log('Setlist PDF generation failed: ' . $e->getMessage());
+                    $setlistPdfUrl = $_SERVER['REQUEST_SCHEME'] . '://' . $_SERVER['HTTP_HOST'] . '/setlists/lib/action.php?action=generateSetlistPdf&idSetlist=' . $idSetlist;
+                    $body .= '<br><br><a href="' . $setlistPdfUrl . '">Download Setlist PDF</a>';
+                }
+
+                $result = Mail::send($email, $subject, $body, [], $attachments);
+                if ($result) $sentCount++;
+
+                if (!empty($attachments) && file_exists($attachments[0]['path'])) {
+                    @unlink($attachments[0]['path']);
+                }
+            }
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['sentCount' => $sentCount]);
         break;
 
     default:

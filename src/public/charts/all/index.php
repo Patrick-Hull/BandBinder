@@ -453,6 +453,56 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════
+         SEND CHART MODAL
+    ════════════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="sendChartModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5">Send Chart to Members</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="sendChartId">
+                    <div class="mb-3">
+                        <label for="sendChartName" class="form-label">Chart</label>
+                        <div id="sendChartName" class="fw-semibold">—</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendMemberSelect" class="form-label">Recipients</label>
+                        <select id="sendMemberSelect" class="form-control" multiple placeholder="Select band members..."></select>
+                        <div class="form-text">Hold Ctrl/Cmd to select multiple members, or select none to send to all.</div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input type="checkbox" class="form-check-input" id="sendToAllMembers">
+                        <label class="form-check-label" for="sendToAllMembers">Send to all band members</label>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendPdfType" class="form-label">PDF Attachment</label>
+                        <select id="sendPdfType" class="form-control">
+                            <option value="instrument">Instrument-specific (if assigned)</option>
+                            <option value="master">Full Master PDF</option>
+                        </select>
+                        <div class="form-text">Send instrument-specific PDF to each user, or the full master PDF to all.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="sendEmailBody" class="form-label">Email Body</label>
+                        <textarea class="form-control" id="sendEmailBody" rows="6" placeholder="Enter your message to the band members..."></textarea>
+                    </div>
+                    <div id="sendEmailPreview" class="mb-3 d-none">
+                        <label class="form-label">Preview</label>
+                        <div class="border rounded p-3 bg-light small" id="sendEmailPreviewContent"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="sendChartBtn"><i class="bi bi-envelope"></i> Send Email</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <style>
         .audio-player-bar {
             position: relative;
@@ -613,6 +663,14 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         }
                     },
                     {
+                        data: 'avgRating', title: 'Rating', render: function (d, t, row) {
+                            var r = row.avgRating || 0;
+                            var c = row.ratingCount || 0;
+                            if (!r) return '<span class="text-muted">—</span>';
+                            return '<span style="color:#f5a623">' + '★'.repeat(Math.round(r)) + '</span> ' + r.toFixed(1) + ' <span class="text-muted small">(' + c + ')</span>';
+                        }
+                    },
+                    {
                         data: 'hasPdf', title: 'PDF', render: function (d) {
                             return d ? '<i class="bi bi-file-earmark-pdf text-danger"></i>' : '';
                         }
@@ -621,7 +679,10 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                         data: null, title: '', defaultContent: '', render: function (d, t, row) {
                             let html = '';
                             if (row.audioPath) {
-                                html += `<button class="btn btn-sm btn-outline-success play-audio-btn" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
+                                html += `<button class="btn btn-sm btn-outline-success play-audio-btn me-1" title="Play Audio"><i class="bi bi-music-note-beamed"></i></button>`;
+                            }
+                            if (canEdit) {
+                                html += `<button class="btn btn-sm btn-outline-info send-chart-btn" title="Send to Members"><i class="bi bi-envelope"></i></button>`;
                             }
                             return html;
                         }
@@ -635,14 +696,15 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     {targets: 4, orderable: false, searchable: false},
                     {targets: 5, orderable: true, searchable: true},
                     {targets: 6, orderable: false, searchable: false},
-                    {targets: 7, orderable: true, searchable: true},
-                    {targets: 8, orderable: false, searchable: false},
+                    {targets: 7, orderable: true, searchable: false},
+                    {targets: 8, orderable: true, searchable: true},
+                    {targets: 9, orderable: false, searchable: false},
                 ];
 
                 if (canEdit || canDelete) {
                     columns.push({data: null, defaultContent: ''});
                     columnDefs.push({
-                        targets: 9,
+                        targets: 10,
                         orderable: false,
                         searchable: false,
                         title: '',
@@ -697,6 +759,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                             if (json.categoriesMap) {
                                 $.each(json.data, function(i, row) {
                                     row.categories = json.categoriesMap[row.idChart] || [];
+                                });
+                            }
+                            if (json.ratingsMap) {
+                                $.each(json.data, function(i, row) {
+                                    var r = json.ratingsMap[row.idChart] || {};
+                                    row.avgRating = r.avgRating || null;
+                                    row.ratingCount = r.ratingCount || 0;
                                 });
                             }
                             return json.data;
@@ -979,7 +1048,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             $.ajax(ajaxOpts);
         });
 
-        $(document).on('click', '.toggleActivationBtn', function () {
+$(document).on('click', '.toggleActivationBtn', function () {
             const btn = $(this);
             const idChart = btn.data('chart-id');
             const rowData = table.row(btn.closest('tr')).data();
@@ -990,7 +1059,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 data: { action: "toggleActivation", idChart: idChart },
                 dataType: 'JSON',
                 success: function (data) {
-                    // Toggle locally so we don’t need a full reload
+                    // Toggle locally so we don't need a full reload
                     rowData.isActive = !rowData.isActive;
 
                     // Update the DataTable row without refreshing everything
@@ -999,6 +1068,101 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                     toastr.success(`Chart ${rowData.isActive ? 'activated' : 'deactivated'} successfully.`);
                 },
                 error: ajaxErrorHandler
+            });
+        });
+
+        // ── Send Chart Modal ─────────────────────────────────────────
+        let sendMemberTs = null;
+
+        function loadMemberOptions(ts, selectedValues) {
+            $.ajax({
+                type: 'POST', url: '/users/lib/action.php',
+                data: { action: 'getAllUsers' },
+                dataType: 'JSON',
+                success: function (r) {
+                    (r.data || []).forEach(function(o) { ts.addOption(o); });
+                    if (selectedValues) ts.setValue(selectedValues);
+                }
+            });
+        }
+
+        $('#chartTable').on('click', '.send-chart-btn', function () {
+            const row = table.row($(this).closest('tr')).data();
+            $('#sendChartId').val(row.idChart);
+            $('#sendChartName').text(row.chartName);
+            $('#sendEmailBody').val('');
+            $('#sendToAllMembers').prop('checked', false);
+            $('#sendMemberSelect').closest('.form-group').removeClass('d-none');
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('sendChartModal')).show();
+        });
+
+        $('#sendChartModal').on('shown.bs.modal', function () {
+            $('#sendEmailBody').focus();
+            if (sendMemberTs) { sendMemberTs.destroy(); sendMemberTs = null; }
+            sendMemberTs = new TomSelect('#sendMemberSelect', {
+                plugins: ['remove_button'],
+                create: false,
+                maxItems: null,
+            });
+            loadMemberOptions(sendMemberTs, []);
+        });
+
+        $('#sendChartModal').on('hidden.bs.modal', function () {
+            if (sendMemberTs) { sendMemberTs.destroy(); sendMemberTs = null; }
+        });
+
+        $('#sendToAllMembers').on('change', function () {
+            if ($(this).prop('checked')) {
+                $('#sendMemberSelect').closest('.mb-3').addClass('d-none');
+            } else {
+                $('#sendMemberSelect').closest('.mb-3').removeClass('d-none');
+            }
+        });
+
+        $('#sendEmailBody').on('input', function () {
+            var body = $(this).val();
+            if (body) {
+                $('#sendEmailPreview').removeClass('d-none');
+                $('#sendEmailPreviewContent').text(body);
+            } else {
+                $('#sendEmailPreview').addClass('d-none');
+            }
+        });
+
+        $('#sendChartBtn').on('click', function () {
+            const idChart = $('#sendChartId').val();
+            if (!idChart) return;
+
+            const sendToAll = $('#sendToAllMembers').prop('checked');
+            const memberIds = sendToAll ? [] : (sendMemberTs ? sendMemberTs.getValue() : []);
+            const emailBody = $('#sendEmailBody').val().trim();
+
+            if (!sendToAll && (!memberIds || memberIds.length === 0)) {
+                toastr.error('Please select recipients or check "Send to all members".');
+                return;
+            }
+
+            const btn = $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
+
+            $.ajax({
+                type: 'POST', url: 'lib/action.php',
+                data: {
+                    action: 'sendChartToMembers',
+                    idChart: idChart,
+                    memberIds: JSON.stringify(memberIds),
+                    sendToAll: sendToAll,
+                    pdfType: $('#sendPdfType').val(),
+                    emailBody: emailBody
+                },
+                dataType: 'JSON',
+                success: function (r) {
+                    bootstrap.Modal.getInstance(document.getElementById('sendChartModal')).hide();
+                    toastr.success('Chart sent to ' + r.sentCount + ' member(s).');
+                },
+                error: ajaxErrorHandler,
+                complete: function() {
+                    btn.prop('disabled', false).html('<i class="bi bi-envelope"></i> Send Email');
+                }
             });
         });
 

@@ -54,6 +54,34 @@ switch($action) {
         echo json_encode(['data' => $datatable]);
         break;
 
+    // ── Get all users (for dropdowns, includes self) ──────────────────────────
+    case 'getAllUsers':
+        if(!in_array('charts.view', $_SESSION['user']['permissions']) && !in_array('setlists.view', $_SESSION['user']['permissions'])){
+            http_response_code(403);
+            echo json_encode(['error' => 'Permission denied']);
+            exit;
+        }
+
+        try {
+            $users = User::GetAll();
+        } catch (Exception $e) {
+            http_response_code(500);
+            echo json_encode(['message' => $e->getMessage()]);
+            exit;
+        }
+
+        $list = [];
+        foreach($users as $user){
+            $list[] = [
+                'value' => $user->getIdUser(),
+                'text' => $user->getNameShort() ?: $user->getUsername(),
+            ];
+        }
+
+        http_response_code(200);
+        echo json_encode(['data' => $list]);
+        break;
+
     case 'getUserDetail':
         if(!in_array('users.edit', $_SESSION['user']['permissions'])){
             http_response_code(403);

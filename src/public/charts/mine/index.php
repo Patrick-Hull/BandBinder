@@ -200,6 +200,13 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                                     row.categories = json.categoriesMap[row.idChart] || [];
                                 });
                             }
+                            if (json.ratingsMap) {
+                                $.each(json.data, function(i, row) {
+                                    var r = json.ratingsMap[row.idChart] || {};
+                                    row.avgRating = r.avgRating || null;
+                                    row.ratingCount = r.ratingCount || 0;
+                                });
+                            }
                             return json.data;
                         }
                     },
@@ -217,6 +224,12 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                             }).join('');
                         }},
                         {data: 'myRating',     title: 'My Rating', render: function (d) { return starsDisplay(d); }},
+                        {data: 'avgRating', title: 'Band Rating', render: function(d, t, row) {
+                            var r = row.avgRating || 0;
+                            var c = row.ratingCount || 0;
+                            if (!r) return '<span class="text-muted">—</span>';
+                            return '<span style="color:#f5a623">' + '★'.repeat(Math.round(r)) + '</span> ' + r.toFixed(1) + ' <span class="text-muted small">(' + c + ')</span>';
+                        }},
                         {data: null,           title: '', defaultContent: ''},
                     ],
                     columnDefs: [
@@ -227,7 +240,8 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         {targets: 4, orderable: true, searchable: false},
                         {targets: 5, orderable: true, searchable: true},
                         {targets: 6, orderable: true, searchable: false},
-                        {targets: 7, orderable: false, searchable: false,
+                        {targets: 7, orderable: true, searchable: false},
+                        {targets: 8, orderable: false, searchable: false,
                             render: function (d, t, row) {
                                 let html = '<button class="btn btn-sm btn-outline-primary view-chart-btn me-1"><i class="bi bi-eye"></i> View</button>';
                                 if (row.myPdfPath) {
