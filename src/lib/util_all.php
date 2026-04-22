@@ -27,6 +27,7 @@ if(!isset($_SERVER['REMOTE_ADDR']))
 }
 
 require_once __DIR__ . '/../vendor/autoload.php';
+
 require_once __DIR__ . "/class/DatabaseManager.php";
 require_once __DIR__ . "/class/Auth.php";
 require_once __DIR__ . "/class/User.php";
@@ -41,6 +42,7 @@ require_once __DIR__ . "/class/Artist.php";
 require_once __DIR__ . "/class/Arranger.php";
 require_once __DIR__ . "/class/Chart.php";
 require_once __DIR__ . "/class/Setlist.php";
+require_once __DIR__ . "/class/Mail.php";
 
 $authUrl = [
     "/login.php",
