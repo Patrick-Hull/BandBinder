@@ -94,12 +94,19 @@ class Instrument
     /**
      * @throws Exception
      */
-    public static function CreateInstrument(string $instrumentName, InstrumentFamily $idInstrumentFamily): Instrument
+    public static function CreateInstrument(string $instrumentName, InstrumentFamily $idInstrumentFamily, ?string $customId = null, ?int $sortOrder = null): Instrument
     {
         $db = new DatabaseManager();
-        $idInstrument = Helper::UUIDv4();
-        $sql = "INSERT INTO `instrument__types` (`idInstrument`, `idInstrumentFamily`, `instrumentName`) VALUES (?, ?, ?)";
-        $args = [$idInstrument, $idInstrumentFamily->getIdInstrumentFamily(), $instrumentName];
+        $idInstrument = $customId ?: Helper::UUIDv4();
+        
+        // Get next sort order if not provided
+        if ($sortOrder === null) {
+            $maxOrder = $db->query("SELECT MAX(sortOrder) as maxOrder FROM `instrument__types` WHERE `idInstrumentFamily` = ?", [$idInstrumentFamily->getIdInstrumentFamily()]);
+            $sortOrder = ($maxOrder[0]['maxOrder'] ?? 0) + 1;
+        }
+        
+        $sql = "INSERT INTO `instrument__types` (`idInstrument`, `idInstrumentFamily`, `instrumentName`, `sortOrder`) VALUES (?, ?, ?, ?)";
+        $args = [$idInstrument, $idInstrumentFamily->getIdInstrumentFamily(), $instrumentName, $sortOrder];
 
         try {
             $db->query($sql, $args);
