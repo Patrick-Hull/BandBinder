@@ -43,6 +43,7 @@ require_once __DIR__ . "/class/Arranger.php";
 require_once __DIR__ . "/class/Chart.php";
 require_once __DIR__ . "/class/Setlist.php";
 require_once __DIR__ . "/class/Mail.php";
+require_once __DIR__ . "/class/Category.php";
 
 $authUrl = [
     "/login.php",

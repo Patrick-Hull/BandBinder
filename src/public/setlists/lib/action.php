@@ -23,6 +23,18 @@ if ($action === 'generateSetlistPdf') {
         http_response_code(500); echo $e->getMessage(); exit;
     }
 
+    // Fetch categories for all charts in setlist
+    $chartIds = [];
+    foreach ($sets as $set) {
+        foreach ($set['charts'] as $c) {
+            $chartIds[] = $c['idChart'];
+        }
+    }
+    $categoriesByChart = [];
+    if (!empty($chartIds)) {
+        $categoriesByChart = Category::GetByCharts($chartIds);
+    }
+
     // ── Build PDF ─────────────────────────────────────────────────────────────
     class SetlistPdf extends \setasign\Fpdi\Fpdi
     {
@@ -85,8 +97,8 @@ if ($action === 'generateSetlistPdf') {
     }
 
     // Column widths — centred in 180mm usable width
-    $colW  = [8, 70, 54, 18, 16, 18]; // #, Chart, Artist/Arr, Key, BPM, Dur
-    $heads = ['#', 'Chart', 'Artist / Arranger', 'Key', 'BPM', 'Dur'];
+    $colW  = [8, 55, 40, 15, 14, 14, 18]; // #, Chart, Artist/Arr, Key, BPM, Dur, Category
+    $heads = ['#', 'Chart', 'Artist / Arranger', 'Key', 'BPM', 'Dur', 'Category'];
     $totalTableW = array_sum($colW);    // 184 mm
     $pageW = 210 - 30;                  // 180 mm usable
     $offsetX = 15 + ($pageW - $totalTableW) / 2;
@@ -121,6 +133,26 @@ if ($action === 'generateSetlistPdf') {
             $bpm      = $c['bpm']      ? (string)$c['bpm']        : '';
             $key      = $c['chartKey'] ?? '';
             $dur      = fmtDur($c['duration']);
+
+            // Get categories for this chart
+            $cats = $categoriesByChart[$c['idChart']] ?? [];
+            $catStr = '';
+            foreach ($cats as $cat) {
+                $catName = $cat['categoryName'];
+                $catColour = $cat['categoryColour'];
+                if ($catColour) {
+                    // Parse hex colour for FPDF
+                    $r = hexdec(substr($catColour, 1, 2));
+                    $g = hexdec(substr($catColour, 3, 2));
+                    $b = hexdec(substr($catColour, 5, 2));
+                    $pdf->SetFillColor($r, $g, $b);
+                    $catStr .= $catName . ' ';
+                } else {
+                    $catStr .= $catName . ' ';
+                }
+            }
+            $catStr = trim($catStr);
+
             $fill     = ($idx % 2 === 0);
             $pdf->SetFillColor($fill ? 255 : 248, $fill ? 255 : 248, $fill ? 255 : 248);
             $pdf->SetX($offsetX);
@@ -130,7 +162,16 @@ if ($action === 'generateSetlistPdf') {
             $pdf->Cell($colW[3], 6, $key,               1, 0, 'C', true);
             $pdf->Cell($colW[4], 6, $bpm,               1, 0, 'C', true);
             $pdf->Cell($colW[5], 6, $dur,               1, 0, 'C', true);
+            if ($catStr) {
+                $pdf->SetFont('Helvetica', 'B', 7);
+                $pdf->Cell($colW[6], 6, $catStr, 1, 0, 'C', true);
+                $pdf->SetFont('Helvetica', '', 9);
+            } else {
+                $pdf->Cell($colW[6], 6, '', 1, 0, 'C', true);
+            }
             $pdf->Ln();
+            // Reset fill color back after coloured category cells
+            $pdf->SetFillColor(255, 255, 255);
         }
 
         // Set total row
@@ -138,9 +179,9 @@ if ($action === 'generateSetlistPdf') {
             $pdf->SetFont('Helvetica', 'B', 9);
             $pdf->SetFillColor(220, 220, 220);
             $pdf->SetX($offsetX);
-            $labelW = $colW[0] + $colW[1] + $colW[2] + $colW[3] + $colW[4];
+            $labelW = $colW[0] + $colW[1] + $colW[2] + $colW[3] + $colW[4] + $colW[5];
             $pdf->Cell($labelW, 6, 'Set Total', 1, 0, 'R', true);
-            $pdf->Cell($colW[5], 6, fmtDur($setTotal), 1, 0, 'C', true);
+            $pdf->Cell($colW[6], 6, fmtDur($setTotal), 1, 0, 'C', true);
             $pdf->Ln();
         }
 
@@ -151,10 +192,10 @@ if ($action === 'generateSetlistPdf') {
     if ($grandTotal > 0) {
         $pdf->SetFont('Helvetica', 'B', 10);
         $pdf->SetFillColor(200, 200, 200);
-        $labelW = $colW[0] + $colW[1] + $colW[2] + $colW[3] + $colW[4];
+        $labelW = $colW[0] + $colW[1] + $colW[2] + $colW[3] + $colW[4] + $colW[5];
         $pdf->SetX($offsetX);
         $pdf->Cell($labelW, 7, 'Total Duration', 1, 0, 'R', true);
-        $pdf->Cell($colW[5], 7, fmtDur($grandTotal), 1, 0, 'C', true);
+        $pdf->Cell($colW[6], 7, fmtDur($grandTotal), 1, 0, 'C', true);
         $pdf->Ln();
     }
 

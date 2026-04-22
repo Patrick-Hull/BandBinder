@@ -17,9 +17,43 @@ switch ($action) {
         if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
             http_response_code(403); echo json_encode(['error' => 'Permission denied']); exit;
         }
+        $categoryFilter = trim($_POST['categoryFilter'] ?? '');
         try {
-            $charts = Chart::GetActiveForUser($idUser);
-            $db     = new DatabaseManager();
+            $db = new DatabaseManager();
+            // Get user's instruments
+            $userInstruments = $db->query(
+                "SELECT lui.idInstrument, it.idInstrumentFamily
+                 FROM `link__user_instrument` lui
+                 JOIN `instrument__types` it ON it.idInstrument = lui.idInstrument
+                 WHERE lui.idUser = ?",
+                [$idUser]
+            );
+            $instrumentIds = array_column($userInstruments, 'idInstrument');
+            $familyIds     = array_unique(array_column($userInstruments, 'idInstrumentFamily'));
+
+            // Build query
+            $query = "SELECT DISTINCT c.*
+                 FROM `charts` c
+                 WHERE (
+                     NOT EXISTS (SELECT 1 FROM `chart__pdf_parts` cpp WHERE cpp.idChart = c.idChart)
+                     OR
+                     EXISTS (
+                         SELECT 1
+                         FROM `chart__pdf_parts` cpp
+                         JOIN `link__user_instrument` lui ON lui.idInstrument = cpp.idInstrument
+                         WHERE cpp.idChart = c.idChart AND lui.idUser = ?
+                     )
+                 ) AND c.isActive = ?";
+            $params = [$idUser, true];
+
+            if ($categoryFilter !== '') {
+                $query .= " AND c.idChart IN (SELECT idChart FROM `link__chart_category` WHERE idCategory = ?)";
+                $params[] = $categoryFilter;
+            }
+            $query .= " ORDER BY c.chartName";
+
+            $rows = $db->query($query, $params);
+            $charts = array_map(fn($row) => new Chart($row['idChart']), $rows);
 
             // Get user's instruments
             $userInstruments = $db->query(
@@ -36,8 +70,10 @@ switch ($action) {
         }
 
         $data = [];
+        $chartIds = [];
         foreach ($charts as $chart) {
             $idChart = $chart->getIdChart();
+            $chartIds[] = $idChart;
 
             // Determine which PDF to show: instrument-specific or master
             $myPdfPath = null;
@@ -82,8 +118,13 @@ switch ($action) {
                 'familyNotes'        => $familyNotes,
             ];
         }
+        // Get categories for all charts
+        $categoriesMap = [];
+        if (!empty($chartIds)) {
+            $categoriesMap = Category::GetByCharts($chartIds);
+        }
         http_response_code(200);
-        echo json_encode(['data' => $data]);
+        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap]);
         break;
 
     // ── Save personal fields for a chart ─────────────────────────────────────
@@ -111,6 +152,21 @@ switch ($action) {
         }
         http_response_code(200);
         echo json_encode(['success' => true]);
+        break;
+
+    // ── Categories list for dropdown ─────────────────────────────────────────────
+    case 'getCategoriesList':
+        if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['error' => 'Permission denied']); exit;
+        }
+        try {
+            $categories = Category::GetAll();
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['error' => $e->getMessage()]); exit;
+        }
+        $data = array_map(fn($c) => ['value' => $c->getIdCategory(), 'text' => $c->getCategoryName()], $categories);
+        http_response_code(200);
+        echo json_encode(['data' => $data]);
         break;
 
     default:

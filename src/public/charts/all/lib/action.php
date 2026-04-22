@@ -146,20 +146,27 @@ switch ($action) {
         if (!in_array('charts.viewAll', $_SESSION['user']['permissions'])) {
             http_response_code(403); echo json_encode(['error' => 'Permission denied']); exit;
         }
+        $categoryFilter = trim($_POST['categoryFilter'] ?? '');
         try {
             $db = new DatabaseManager();
-            $rows = $db->query(
-                "SELECT c.*, a.artistName, ar.arrangerName
+            $query = "SELECT c.*, a.artistName, ar.arrangerName
                  FROM `charts` c
                  LEFT JOIN `artists`   a  ON a.idArtist   = c.idArtist
-                 LEFT JOIN `arrangers` ar ON ar.idArranger = c.idArranger
-                 ORDER BY c.chartName"
-            );
+                 LEFT JOIN `arrangers` ar ON ar.idArranger = c.idArranger";
+            $params = [];
+            if ($categoryFilter !== '') {
+                $query .= " JOIN `link__chart_category` lcc ON lcc.idChart = c.idChart AND lcc.idCategory = ?";
+                $params[] = $categoryFilter;
+            }
+            $query .= " ORDER BY c.chartName";
+            $rows = $db->query($query, $params);
         } catch (Exception $e) {
             http_response_code(500); echo json_encode(['error' => $e->getMessage()]); exit;
         }
         $data = [];
+        $chartIds = [];
         foreach ($rows as $row) {
+            $chartIds[] = $row['idChart'];
             $data[] = [
                 'idChart'      => $row['idChart'],
                 'chartName'    => $row['chartName'],
@@ -178,8 +185,13 @@ switch ($action) {
                 'isActive'     => !empty($row['isActive']),
             ];
         }
+        // Get categories for all charts
+        $categoriesMap = [];
+        if (!empty($chartIds)) {
+            $categoriesMap = Category::GetByCharts($chartIds);
+        }
         http_response_code(200);
-        echo json_encode(['data' => $data]);
+        echo json_encode(['data' => $data, 'categoriesMap' => $categoriesMap]);
         break;
 
     // ── Create chart ─────────────────────────────────────────────────────────
@@ -502,6 +514,71 @@ switch ($action) {
                 if (file_exists($f)) unlink($f);
             }
             $chart->SetAudioPath(null);
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        http_response_code(200);
+        echo json_encode(['success' => true]);
+        break;
+
+    // ── Categories list for dropdown ─────────────────────────────────────────────
+    case 'getCategoriesList':
+        try {
+            $categories = Category::GetAll();
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['error' => $e->getMessage()]); exit;
+        }
+        $data = array_map(fn($c) => ['value' => $c->getIdCategory(), 'text' => $c->getCategoryName()], $categories);
+        http_response_code(200);
+        echo json_encode(['data' => $data]);
+        break;
+
+    // ── Get categories for a chart ─────────────────────────────────────────────
+    case 'getChartCategories':
+        if (!in_array('charts.viewAll', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        try {
+            $categories = Category::GetByChart($idChart);
+        } catch (Exception $e) {
+            http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
+        }
+        $data = array_map(fn($c) => [
+            'idCategory'    => $c->getIdCategory(),
+            'categoryName' => $c->getCategoryName(),
+            'categoryColour' => $c->getCategoryColour(),
+        ], $categories);
+        http_response_code(200);
+        echo json_encode(['data' => $data]);
+        break;
+
+    // ── Set categories for a chart ─────────────────────────────────────────
+    case 'setChartCategories':
+        if (!in_array('charts.edit', $_SESSION['user']['permissions'])) {
+            http_response_code(403); echo json_encode(['message' => 'Permission denied']); exit;
+        }
+        $idChart = trim($_POST['idChart'] ?? '');
+        $categoryIds = json_decode($_POST['categoryIds'] ?? '[]', true);
+        if ($idChart === '') {
+            http_response_code(400); echo json_encode(['message' => 'Chart ID is required']); exit;
+        }
+        try {
+            $db = new DatabaseManager();
+            // Remove all existing category links
+            $db->query("DELETE FROM `link__chart_category` WHERE `idChart` = ?", [$idChart]);
+            // Add new category links
+            foreach ($categoryIds as $idCategory) {
+                if (!empty($idCategory)) {
+                    $db->query(
+                        "INSERT IGNORE INTO `link__chart_category` (`idChart`, `idCategory`) VALUES (?, ?)",
+                        [$idChart, $idCategory]
+                    );
+                }
+            }
         } catch (Exception $e) {
             http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
         }

@@ -40,6 +40,9 @@ function navLink(string $href, string $label, string $currentPath): string {
                 if (in_array('arrangers.view', $_SESSION['user']['permissions'])) {
                     echo navLink('/arrangers/', 'Arrangers', $currentPath);
                 }
+                if (in_array('categories.view', $_SESSION['user']['permissions'])) {
+                    echo navLink('/categories/', 'Categories', $currentPath);
+                }
                 if (in_array('instruments.view', $_SESSION['user']['permissions'])) {
                     echo navLink('/instruments/', 'Instruments', $currentPath);
                 }

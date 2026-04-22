@@ -30,6 +30,17 @@ CREATE TABLE `artists` (
   PRIMARY KEY (`idArtist`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `chart__categories`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `chart__categories` (
+  `idCategory` varchar(36) NOT NULL,
+  `categoryName` varchar(100) NOT NULL,
+  `categoryColour` varchar(7) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`idCategory`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `chart__pdf_parts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -108,6 +119,18 @@ CREATE TABLE `instrument__types` (
   PRIMARY KEY (`idInstrument`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `link__chart_category`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `link__chart_category` (
+  `idChart` varchar(36) NOT NULL,
+  `idCategory` varchar(36) NOT NULL,
+  PRIMARY KEY (`idChart`,`idCategory`),
+  KEY `idCategory` (`idCategory`),
+  CONSTRAINT `link__chart_category_ibfk_1` FOREIGN KEY (`idChart`) REFERENCES `charts` (`idChart`) ON DELETE CASCADE,
+  CONSTRAINT `link__chart_category_ibfk_2` FOREIGN KEY (`idCategory`) REFERENCES `chart__categories` (`idCategory`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `link__user_instrument`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8mb4 */;
@@ -141,7 +164,23 @@ CREATE TABLE `migrations` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `filename` (`filename`),
   KEY `idx_filename` (`filename`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `password_reset_tokens`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `password_reset_tokens` (
+  `id` varchar(36) NOT NULL,
+  `user_id` varchar(36) NOT NULL,
+  `token` varchar(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
+  `used_at` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_token` (`token`),
+  KEY `idx_user_id` (`user_id`),
+  CONSTRAINT `password_reset_tokens_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `setlist__set_charts`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -242,7 +281,7 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` varchar(36) NOT NULL,
   `username` varchar(100) NOT NULL,
-  `password` varchar(64) NOT NULL,
+  `password` varchar(64) DEFAULT NULL,
   `email` varchar(255) NOT NULL,
   `nameShort` varchar(50) DEFAULT NULL,
   `nameFirst` varchar(100) DEFAULT NULL,
