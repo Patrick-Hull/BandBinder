@@ -29,13 +29,13 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             .page-thumb {
                 position: relative;
                 cursor: pointer;
-                border: 3px solid #dee2e6;
+                border: 3px solid var(--bs-border-color);
                 border-radius: 6px;
                 background: #fff;
                 transition: border-color 0.12s, transform 0.1s;
                 user-select: none;
             }
-            .page-thumb:hover { transform: scale(1.02); border-color: #adb5bd; z-index: 1; }
+            .page-thumb:hover { transform: scale(1.02); border-color: var(--bs-secondary-color); z-index: 1; }
             .page-thumb canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
             .page-thumb .page-badge {
                 position: absolute; top: 0; left: 0; right: 0;
@@ -56,8 +56,8 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                 border-left: 5px solid transparent;
                 transition: background 0.1s;
             }
-            .instrument-item:hover { background: rgba(0,0,0,0.04); }
-            .instrument-item.active { background: rgba(0,0,0,0.07); }
+            .instrument-item:hover { background: var(--bs-secondary-bg); }
+            .instrument-item.active { background: var(--bs-tertiary-bg); }
             /* ── Fullscreen modal scroll fix ─────────────────────── */
             #managePdfModal .modal-body {
                 min-height: 0;
@@ -327,7 +327,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
                     <!-- ── Left sidebar: instruments ────────────── -->
                     <div class="d-flex flex-column border-end" style="width:270px;min-width:270px;overflow-y:auto;">
-                        <div class="p-3 border-bottom bg-light">
+                        <div class="p-3 border-bottom bg-body-tertiary">
                             <div class="fw-semibold mb-1">Instruments</div>
                             <small class="text-muted">
                                 1. Click an instrument<br>
@@ -355,7 +355,7 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
 
                     <!-- ── Right: PDF page thumbnails ───────────── -->
                     <div class="flex-grow-1 d-flex flex-column overflow-hidden">
-                        <div class="px-3 py-2 border-bottom bg-light d-flex align-items-center gap-2">
+                        <div class="px-3 py-2 border-bottom bg-body-tertiary d-flex align-items-center gap-2">
                             <span id="pdfPageCountBadge" class="badge bg-secondary"></span>
                             <span class="text-muted small" id="pdfStatusMsg">Loading PDF…</span>
                         </div>
@@ -1522,7 +1522,7 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 for (let i = 1; i <= total; i++) {
                     $('#pdfPageGrid').append(`
                         <div class="page-thumb" data-page="${i}">
-                            <div class="thumb-canvas-wrap page-placeholder d-flex align-items-center justify-content-center bg-light" style="aspect-ratio:210/297;">
+                            <div class="thumb-canvas-wrap page-placeholder d-flex align-items-center justify-content-center bg-body-tertiary" style="aspect-ratio:210/297;">
                                 <span class="spinner-border spinner-border-sm text-secondary"></span>
                             </div>
                             <div class="page-badge d-none"></div>
@@ -1577,7 +1577,7 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 canvas.style.cssText = 'display:block;width:100%;height:auto;';
                 await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
                 const wrap = $(`#pdfPageGrid .page-thumb[data-page="${pageNum}"] .thumb-canvas-wrap`);
-                wrap.removeClass('page-placeholder d-flex align-items-center justify-content-center bg-light').html(canvas);
+                wrap.removeClass('page-placeholder d-flex align-items-center justify-content-center bg-body-tertiary').html(canvas);
             } catch (_) { /* ignore individual page errors */ }
         }
 
