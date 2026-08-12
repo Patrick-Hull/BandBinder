@@ -81,10 +81,10 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                             <input type="email" class="form-control" id="createEmail" placeholder="e.g. jdoe@example.com">
                         </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="createPassword" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="createPassword" autocomplete="new-password" placeholder="Leave blank - user will set their own password">
-                        <small class="text-muted">Optional. Leave blank to send a welcome email for the user to set their own password.</small>
+                    <div class="mb-3 form-check">
+                        <input class="form-check-input" type="checkbox" id="createSendWelcomeEmail" checked>
+                        <label class="form-check-label" for="createSendWelcomeEmail">Send welcome email</label>
+                        <small class="form-text text-muted d-block">The user activates their account and sets a password using the emailed link.</small>
                     </div>
                     <div class="row">
                         <div class="col-md-4 mb-3">
@@ -765,7 +765,8 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
         // ════════════════════════════════════════════════════════════════
 
         $('#createUserModal').on('shown.bs.modal', function () {
-            $('#createUsername, #createEmail, #createPassword, #createNameShort, #createNameFirst, #createNameLast').val('');
+            $('#createUsername, #createEmail, #createNameShort, #createNameFirst, #createNameLast').val('');
+            $('#createSendWelcomeEmail').prop('checked', true);
 
             // Load instruments
             $.ajax({
@@ -834,7 +835,6 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
 
         $('#saveUserBtn').on('click', function () {
             const username = $('#createUsername').val().trim();
-            const password = $('#createPassword').val();
             const email    = $('#createEmail').val().trim();
 
             if (!username || !email) {
@@ -845,8 +845,8 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
             const data = {
                 action:    'createUser',
                 username:  username,
-                password:  password,
                 email:     email,
+                sendWelcomeEmail: $('#createSendWelcomeEmail').is(':checked'),
                 nameShort: $('#createNameShort').val().trim(),
                 nameFirst: $('#createNameFirst').val().trim(),
                 nameLast:  $('#createNameLast').val().trim(),
@@ -867,10 +867,16 @@ $canEditPermissions = in_array('users.editPermissions', $_SESSION['user']['permi
                 url: 'lib/action.php',
                 data: data,
                 dataType: 'JSON',
-                success: function () {
+                success: function (resp) {
                     bootstrap.Modal.getInstance(document.getElementById('createUserModal')).hide();
                     fetchUsers();
-                    toastr.success('User created successfully.');
+                    if (resp.warning) {
+                        toastr.error(resp.warning);
+                    } else if (resp.welcomeEmailSent) {
+                        toastr.success('User created and welcome email sent.');
+                    } else {
+                        toastr.success('User created successfully.');
+                    }
                 },
                 error: ajaxErrorHandler
             });
