@@ -5,7 +5,7 @@ session_destroy();
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>Logged Out — BandBinder</title>
+    <title>Logged Out - BandBinder</title>
     <?php require_once __DIR__ . '/../lib/html_header/bootstrap.php'; ?>
     <style>
         html, body {

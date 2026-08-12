@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title><?php echo $pageName; ?> — BandBinder</title>
+    <title><?php echo $pageName; ?> - BandBinder</title>
     <?php require_once __DIR__ . '/../lib/html_header/all.php'; ?>
     <style>
         html, body {

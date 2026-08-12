@@ -140,6 +140,31 @@ function splitPdfByPageList(string $idChart, string $idInstrument, array $pages)
     return CHART_UPLOAD_URL . $idChart . '/parts/' . $idInstrument . '.pdf';
 }
 
+/**
+ * Return the number of pages in a chart's master PDF.
+ *
+ * The count is used to reject invalid page assignments before any generated
+ * parts are replaced.
+ */
+function getMasterPdfPageCount(string $idChart): int
+{
+    if (!class_exists('\setasign\Fpdi\Fpdi')) {
+        throw new Exception('PDF splitting library (FPDI) is not installed. Run: composer install');
+    }
+
+    $sourcePath = CHART_UPLOAD_DIR . $idChart . '/master.pdf';
+    if (!file_exists($sourcePath)) {
+        throw new Exception('Master PDF not found on disk');
+    }
+
+    try {
+        return (new \setasign\Fpdi\Fpdi())->setSourceFile($sourcePath);
+    } catch (\Exception $e) {
+        reEncodePdfForFpdi($sourcePath);
+        return (new \setasign\Fpdi\Fpdi())->setSourceFile($sourcePath);
+    }
+}
+
 switch ($action) {
     // ── List all charts ───────────────────────────────────────────────────────
     case 'getCharts':
@@ -447,7 +472,7 @@ switch ($action) {
         }
         $idChart     = trim($_POST['idChart'] ?? '');
         $assignments = json_decode($_POST['assignments'] ?? '[]', true);
-        if ($idChart === '' || !is_array($assignments) || empty($assignments)) {
+        if ($idChart === '' || !is_array($assignments)) {
             http_response_code(400); echo json_encode(['message' => 'Chart ID and assignments are required']); exit;
         }
         try {
@@ -455,24 +480,92 @@ switch ($action) {
             if (!$chart->getPdfPath()) {
                 throw new Exception('This chart has no master PDF to split');
             }
+
+            $db = new DatabaseManager();
+            $validInstrumentIds = array_column(
+                $db->query("SELECT `idInstrument` FROM `instrument__types`"),
+                'idInstrument'
+            );
+            $pageCount = getMasterPdfPageCount($idChart);
+
+            // Normalise input into one de-duplicated, sorted page list per
+            // instrument. The same page is deliberately permitted in multiple
+            // instrument lists so joint parts can be generated for each one.
+            $pagesByInstrument = [];
+            foreach ($assignments as $assignment) {
+                if (!is_array($assignment)) {
+                    throw new Exception('Each assignment must contain an instrument and page list');
+                }
+                $idInstrument = trim($assignment['idInstrument'] ?? '');
+                $pages = $assignment['pages'] ?? null;
+                if ($idInstrument === '' || !in_array($idInstrument, $validInstrumentIds, true)) {
+                    throw new Exception('Invalid instrument assignment');
+                }
+                if (!is_array($pages)) {
+                    throw new Exception('Each instrument assignment must contain a page list');
+                }
+
+                foreach ($pages as $page) {
+                    if (filter_var($page, FILTER_VALIDATE_INT) === false) {
+                        throw new Exception('Page numbers must be integers');
+                    }
+                    $page = (int)$page;
+                    if ($page < 1 || $page > $pageCount) {
+                        throw new Exception("Page {$page} is outside the master PDF page range");
+                    }
+                    $pagesByInstrument[$idInstrument][$page] = $page;
+                }
+            }
+            foreach ($pagesByInstrument as $idInstrument => $pageMap) {
+                if (empty($pageMap)) {
+                    unset($pagesByInstrument[$idInstrument]);
+                    continue;
+                }
+                ksort($pageMap, SORT_NUMERIC);
+                $pagesByInstrument[$idInstrument] = array_values($pageMap);
+            }
+
+            // Only rows with a page list are generated from the master PDF.
+            // Direct uploads keep pages NULL and must survive page-selector saves.
+            $existingGeneratedParts = [];
+            foreach ($chart->getPdfParts() as $part) {
+                if (array_key_exists('pages', $part) && $part['pages'] !== null) {
+                    $existingGeneratedParts[$part['idInstrument']] = $part;
+                }
+            }
+
             $count   = 0;
             $results = [];
-            foreach ($assignments as $assignment) {
-                $idInstrument = trim($assignment['idInstrument'] ?? '');
-                $pages        = array_map('intval', $assignment['pages'] ?? []);
-                $pages        = array_filter($pages, fn($p) => $p >= 1);
-                if (!$idInstrument || empty($pages)) continue;
-
-                $pdfPath = splitPdfByPageList($idChart, $idInstrument, array_values($pages));
-                $chart->setPdfPart($idInstrument, $pdfPath, array_values($pages));
+            foreach ($pagesByInstrument as $idInstrument => $pages) {
+                $pdfPath = splitPdfByPageList($idChart, $idInstrument, $pages);
+                $chart->setPdfPart($idInstrument, $pdfPath, $pages);
                 $results[] = ['idInstrument' => $idInstrument, 'pdfPath' => $pdfPath];
                 $count++;
+            }
+
+            // A saved selector state is authoritative for generated parts. Do
+            // not remove direct uploads, which are represented by pages NULL.
+            $removedInstruments = [];
+            foreach ($existingGeneratedParts as $idInstrument => $part) {
+                if (isset($pagesByInstrument[$idInstrument])) continue;
+
+                $filePath = CHART_UPLOAD_DIR . $idChart . '/parts/' . $idInstrument . '.pdf';
+                if (file_exists($filePath) && !unlink($filePath)) {
+                    throw new Exception('Could not remove generated PDF for an unassigned instrument');
+                }
+                $chart->removePdfPart($idInstrument);
+                $removedInstruments[] = $idInstrument;
             }
         } catch (Exception $e) {
             http_response_code(500); echo json_encode(['message' => $e->getMessage()]); exit;
         }
         http_response_code(200);
-        echo json_encode(['success' => true, 'count' => $count, 'results' => $results]);
+        echo json_encode([
+            'success' => true,
+            'count' => $count,
+            'results' => $results,
+            'removedInstruments' => $removedInstruments,
+        ]);
         break;
 
     // ── Upload audio file ─────────────────────────────────────────────────────

@@ -37,11 +37,15 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
             }
             .page-thumb:hover { transform: scale(1.02); border-color: var(--bs-secondary-color); z-index: 1; }
             .page-thumb canvas { display: block; width: 100%; height: auto; border-radius: 4px; }
-            .page-thumb .page-badge {
+            .page-thumb .page-badges {
                 position: absolute; top: 0; left: 0; right: 0;
-                padding: 2px 4px; font-size: 0.65rem; font-weight: 600;
-                text-align: center; white-space: nowrap;
-                overflow: hidden; text-overflow: ellipsis;
+                display: flex; flex-wrap: wrap; gap: 2px;
+                padding: 2px 4px;
+            }
+            .page-thumb .page-badge {
+                max-width: 100%; padding: 1px 4px; border-radius: 3px;
+                font-size: 0.65rem; font-weight: 600;
+                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
             }
             .page-thumb .page-placeholder {
                 aspect-ratio: 210 / 297;
@@ -331,7 +335,8 @@ $canCreateArranger = in_array('arrangers.create', $_SESSION['user']['permissions
                             <div class="fw-semibold mb-1">Instruments</div>
                             <small class="text-muted">
                                 1. Click an instrument<br>
-                                2. Click pages on the right to assign them
+                                2. Click pages on the right to toggle that instrument<br>
+                                3. A page can be assigned to multiple instruments
                             </small>
                         </div>
                         <div id="instrumentSidebar" class="flex-grow-1 p-2" style="overflow-y:auto;"></div>
@@ -1337,7 +1342,7 @@ $(document).on('click', '.toggleActivationBtn', function () {
         let instrColors         = {};   // idInstrument -> color obj
         let colorIdx            = 0;
         let selectedInstrId     = null;
-        let pageAssignments     = {};   // pageNum (int) -> {idInstrument, name, color}
+        let pageAssignments     = {};   // pageNum (int) -> {idInstrument: {idInstrument, name, color}}
         let savedPagesMap       = {};   // idInstrument -> [pageNums] (restored from DB on open)
         let pdfDoc              = null;
 
@@ -1347,6 +1352,40 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 colorIdx++;
             }
             return instrColors[id];
+        }
+
+        function renderPageAssignments(pageNum) {
+            const thumb       = $(`#pdfPageGrid .page-thumb[data-page="${pageNum}"]`);
+            const assignments = Object.values(pageAssignments[pageNum] || {});
+            const badges      = thumb.find('.page-badges').empty();
+
+            if (!assignments.length) {
+                thumb.css('border-color', '');
+                badges.addClass('d-none').removeAttr('title');
+                return;
+            }
+
+            thumb.css('border-color', assignments.length === 1 ? assignments[0].color.bg : '#6c757d');
+            badges.attr('title', assignments.map(a => a.name).join(', ')).removeClass('d-none');
+            assignments.forEach(a => {
+                $('<span class="page-badge"></span>')
+                    .text(a.name)
+                    .css({background: a.color.bg, color: a.color.text})
+                    .appendTo(badges);
+            });
+        }
+
+        function updateSidebarCount(id) {
+            const n = Object.values(pageAssignments)
+                .filter(assignments => Object.prototype.hasOwnProperty.call(assignments, id)).length;
+            $(`#instrumentSidebar .instrument-item[data-id="${id}"] .page-count-label`)
+                .text(n + ' page' + (n !== 1 ? 's' : '') + ' selected');
+        }
+
+        function updateAllSidebarCounts() {
+            $('#instrumentSidebar .instrument-item').each(function () {
+                updateSidebarCount($(this).data('id'));
+            });
         }
 
         // Open: called from Edit modal button
@@ -1443,28 +1482,25 @@ $(document).on('click', '.toggleActivationBtn', function () {
         $(document).on('click', '#instrumentSidebar .clear-inst-btn', function () {
             const id = $(this).closest('.instrument-item').data('id');
             Object.keys(pageAssignments).forEach(p => {
-                if (pageAssignments[p].idInstrument === id) {
-                    delete pageAssignments[parseInt(p)];
-                    clearThumb($(`#pdfPageGrid .page-thumb[data-page="${p}"]`));
+                if (pageAssignments[p][id]) {
+                    delete pageAssignments[p][id];
+                    if (!Object.keys(pageAssignments[p]).length) {
+                        delete pageAssignments[p];
+                    }
+                    renderPageAssignments(p);
                 }
             });
-            updateSidebarCount(id);
+            updateAllSidebarCounts();
         });
 
         // Clear all
         $('#clearAllPagesBtn').on('click', function () {
             pageAssignments = {};
-            $('#pdfPageGrid .page-thumb').each(function () { clearThumb($(this)); });
-            $('#instrumentSidebar .instrument-item').each(function () {
-                $(this).find('.page-count-label').text('0 pages selected');
+            $('#pdfPageGrid .page-thumb').each(function () {
+                renderPageAssignments($(this).data('page'));
             });
+            updateAllSidebarCounts();
         });
-
-        function updateSidebarCount(id) {
-            const n = Object.values(pageAssignments).filter(a => a.idInstrument === id).length;
-            $(`#instrumentSidebar .instrument-item[data-id="${id}"] .page-count-label`)
-                .text(n + ' page' + (n !== 1 ? 's' : '') + ' selected');
-        }
 
         // Direct upload per instrument (sidebar)
         $(document).on('change', '#instrumentSidebar .direct-pdf-input', function () {
@@ -1516,7 +1552,7 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 pdfDoc = await pdfjsLib.getDocument(url).promise;
                 const total = pdfDoc.numPages;
                 $('#pdfPageCountBadge').text(total + ' pages');
-                $('#pdfStatusMsg').text('Select an instrument, then click pages to assign them.');
+                $('#pdfStatusMsg').text('Select an instrument, then click pages to toggle its assignment. Pages can be shared.');
 
                 // Build all placeholder cells immediately
                 for (let i = 1; i <= total; i++) {
@@ -1525,7 +1561,7 @@ $(document).on('click', '.toggleActivationBtn', function () {
                             <div class="thumb-canvas-wrap page-placeholder d-flex align-items-center justify-content-center bg-body-tertiary" style="aspect-ratio:210/297;">
                                 <span class="spinner-border spinner-border-sm text-secondary"></span>
                             </div>
-                            <div class="page-badge d-none"></div>
+                            <div class="page-badges d-none"></div>
                             <div class="page-label">Page ${i}</div>
                         </div>
                     `);
@@ -1554,11 +1590,12 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 const name = instrItem.data('name');
                 const c    = instrColor(instrId);
                 pages.forEach(pageNum => {
-                    pageAssignments[pageNum] = {idInstrument: instrId, name, color: c};
-                    paintThumb($(`#pdfPageGrid .page-thumb[data-page="${pageNum}"]`), c, name);
+                    if (!pageAssignments[pageNum]) pageAssignments[pageNum] = {};
+                    pageAssignments[pageNum][instrId] = {idInstrument: instrId, name, color: c};
+                    renderPageAssignments(pageNum);
                 });
-                updateSidebarCount(instrId);
             }
+            updateAllSidebarCounts();
         }
 
         async function renderThumb(pageNum) {
@@ -1588,54 +1625,37 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 return;
             }
             const pageNum = parseInt($(this).data('page'));
-            const prev    = pageAssignments[pageNum];
+            if (!pageAssignments[pageNum]) pageAssignments[pageNum] = {};
 
-            if (prev && prev.idInstrument === selectedInstrId) {
-                // Clicking the same instrument: deselect
-                delete pageAssignments[pageNum];
-                clearThumb($(this));
+            if (pageAssignments[pageNum][selectedInstrId]) {
+                // Clicking the selected instrument removes only that assignment.
+                delete pageAssignments[pageNum][selectedInstrId];
+                if (!Object.keys(pageAssignments[pageNum]).length) {
+                    delete pageAssignments[pageNum];
+                }
             } else {
-                // Assign (or reassign)
-                const prevId = prev ? prev.idInstrument : null;
                 const c      = instrColor(selectedInstrId);
                 const name   = $(`#instrumentSidebar .instrument-item[data-id="${selectedInstrId}"]`).data('name');
-                pageAssignments[pageNum] = {idInstrument: selectedInstrId, name, color: c};
-                paintThumb($(this), c, name);
-                if (prevId) updateSidebarCount(prevId);
+                pageAssignments[pageNum][selectedInstrId] = {idInstrument: selectedInstrId, name, color: c};
             }
-            updateSidebarCount(selectedInstrId);
+            renderPageAssignments(pageNum);
+            updateAllSidebarCounts();
         });
-
-        function paintThumb(thumb, c, name) {
-            thumb.css('border-color', c.bg);
-            thumb.find('.page-badge')
-                .text(name)
-                .css({background: c.bg, color: c.text})
-                .removeClass('d-none');
-        }
-
-        function clearThumb(thumb) {
-            thumb.css('border-color', '');
-            thumb.find('.page-badge').addClass('d-none').text('');
-        }
 
         // ── Save assignments → server splits ──────────────────────
         $('#doSplitBtn').on('click', function () {
             // Group pages by instrument
             const grouped = {};
-            for (const [p, a] of Object.entries(pageAssignments)) {
-                if (!grouped[a.idInstrument]) grouped[a.idInstrument] = [];
-                grouped[a.idInstrument].push(parseInt(p));
+            for (const [p, assignmentsForPage] of Object.entries(pageAssignments)) {
+                Object.values(assignmentsForPage).forEach(a => {
+                    if (!grouped[a.idInstrument]) grouped[a.idInstrument] = [];
+                    grouped[a.idInstrument].push(parseInt(p));
+                });
             }
             const assignments = Object.entries(grouped).map(([id, pages]) => ({
                 idInstrument: id,
                 pages: pages.sort((x, y) => x - y)
             }));
-
-            if (!assignments.length) {
-                toastr.warning('No pages have been assigned to any instrument.');
-                return;
-            }
 
             const btn = $(this).prop('disabled', true)
                 .html('<span class="spinner-border spinner-border-sm"></span> Saving…');
@@ -1645,8 +1665,12 @@ $(document).on('click', '.toggleActivationBtn', function () {
                 data: {action: 'splitChartPdf', idChart: managePdfIdChart, assignments: JSON.stringify(assignments)},
                 dataType: 'JSON',
                 success: function (r) {
-                    toastr.success(r.count + ' instrument PDF(s) saved.');
+                    toastr.success(r.count ? r.count + ' instrument PDF(s) saved.' : 'Page assignments cleared.');
                     btn.prop('disabled', false).html('<i class="bi bi-check-lg"></i> Save Assignments');
+                    (r.removedInstruments || []).forEach(idInstrument => {
+                        delete managePdfPartsMap[idInstrument];
+                        $(`#instrumentSidebar .instrument-item[data-id="${idInstrument}"] .has-pdf-link`).remove();
+                    });
                     // Update has-pdf links in sidebar
                     (r.results || []).forEach(res => {
                         managePdfPartsMap[res.idInstrument] = res;

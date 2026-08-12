@@ -84,7 +84,7 @@ function fmtDur(?int $secs): string {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title><?php echo $pageName; ?> — BandBinder</title>
+    <title><?php echo $pageName; ?> - BandBinder</title>
     <?php require_once __DIR__ . '/../lib/html_header/all.php'; ?>
 </head>
 <body>
