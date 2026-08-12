@@ -32,19 +32,10 @@ switch ($action) {
             $familyIds     = array_unique(array_column($userInstruments, 'idInstrumentFamily'));
 
             // Build query
-            $query = "SELECT DISTINCT c.*
+            $query = "SELECT c.*
                  FROM `charts` c
-                 WHERE (
-                     NOT EXISTS (SELECT 1 FROM `chart__pdf_parts` cpp WHERE cpp.idChart = c.idChart)
-                     OR
-                     EXISTS (
-                         SELECT 1
-                         FROM `chart__pdf_parts` cpp
-                         JOIN `link__user_instrument` lui ON lui.idInstrument = cpp.idInstrument
-                         WHERE cpp.idChart = c.idChart AND lui.idUser = ?
-                     )
-                 ) AND c.isActive = ?";
-            $params = [$idUser, true];
+                 WHERE c.isActive = ?";
+            $params = [true];
 
             if ($categoryFilter !== '') {
                 $query .= " AND c.idChart IN (SELECT idChart FROM `link__chart_category` WHERE idCategory = ?)";
@@ -55,16 +46,6 @@ switch ($action) {
             $rows = $db->query($query, $params);
             $charts = array_map(fn($row) => new Chart($row['idChart']), $rows);
 
-            // Get user's instruments
-            $userInstruments = $db->query(
-                "SELECT lui.idInstrument, it.idInstrumentFamily
-                 FROM `link__user_instrument` lui
-                 JOIN `instrument__types` it ON it.idInstrument = lui.idInstrument
-                 WHERE lui.idUser = ?",
-                [$idUser]
-            );
-            $instrumentIds = array_column($userInstruments, 'idInstrument');
-            $familyIds     = array_unique(array_column($userInstruments, 'idInstrumentFamily'));
         } catch (Exception $e) {
             http_response_code(500); echo json_encode(['error' => $e->getMessage()]); exit;
         }
@@ -77,10 +58,12 @@ switch ($action) {
 
             // Determine which PDF to show: instrument-specific or master
             $myPdfPath = null;
+            $hasMatchingInstrumentPart = false;
             if (!empty($instrumentIds)) {
                 foreach ($chart->getPdfParts() as $part) {
                     if (in_array($part['idInstrument'], $instrumentIds)) {
                         $myPdfPath = $part['pdfPath'];
+                        $hasMatchingInstrumentPart = true;
                         break;
                     }
                 }
@@ -109,6 +92,7 @@ switch ($action) {
                 'chartKey'           => $chart->getChartKey() ?? '',
                 'notes'              => $chart->getNotes()    ?? '',
                 'myPdfPath'          => $myPdfPath,
+                'isFullPdf'          => !$hasMatchingInstrumentPart && !empty($myPdfPath),
                 'audioPath'          => $chart->getAudioPath() ?? '',
                 'myRating'           => $myFields['starRating']       ?? null,
                 'myPrivateNotes'     => $myFields['privateNotes']     ?? '',
