@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
         <div class="brand-icon-wrap">
             <i class="bi bi-check-lg"></i>
         </div>
-        <h1>Password Set!</h1>
+        <h1>Account Activated!</h1>
         <div class="tagline">Your password has been successfully set.</div>
     </div>
     <div class="card password-card">
@@ -148,8 +148,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
         <div class="brand-icon-wrap">
             <i class="bi bi-key"></i>
         </div>
-        <h1>Set Your Password</h1>
-        <div class="tagline">Create a secure password for your account</div>
+        <h1>Activate Your Account</h1>
+        <div class="tagline">Set a secure password to activate your account</div>
     </div>
 
     <div class="card password-card">
@@ -174,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($error)) {
 
             <div class="d-grid">
                 <button class="btn btn-primary btn-set-password" type="submit" id="setPasswordBtn" <?php echo empty($token) ? 'disabled' : ''; ?>>
-                    Set Password
+                    Activate Account
                 </button>
             </div>
         </form>

@@ -273,19 +273,35 @@ class User
         return !empty($this->data['password']);
     }
 
-    public function sendWelcomeEmail(): bool
+    /**
+     * Welcome emails require the site's SMTP configuration.  Keep this
+     * validation separate from sending so callers can give administrators a
+     * useful error before an activation token is generated.
+     */
+    public static function isSmtpConfigured(): bool
     {
         $db = new DatabaseManager();
-        
         $result = $db->query("SELECT config_value FROM site_config WHERE config_key = 'mail_settings'");
+
         if (!$result || count($result) === 0) {
             return false;
         }
-        
-        $mailConfig = json_decode($result[0]['config_value'], true);
-        if (!$mailConfig) {
+
+        $config = json_decode($result[0]['config_value'], true);
+        return is_array($config)
+            && ($config['protocol'] ?? 'smtp') === 'smtp'
+            && !empty($config['smtp_host'])
+            && !empty($config['smtp_port'])
+            && !empty($config['from_email']);
+    }
+
+    public function sendWelcomeEmail(): bool
+    {
+        if (!self::isSmtpConfigured()) {
             return false;
         }
+
+        $db = new DatabaseManager();
 
         $token = bin2hex(random_bytes(32));
         $expiresAt = date('Y-m-d H:i:s', strtotime('+24 hours'));
@@ -315,11 +331,11 @@ class User
             <div class="container">
                 <h2>Welcome to BandBinder!</h2>
                 <p>Hello ' . htmlspecialchars($this->getNameShort() ?: $this->getUsername()) . ',</p>
-                <p>An account has been created for you on BandBinder. To get started, please set your password by clicking the button below:</p>
+                <p>An account has been created for you on BandBinder. To activate your account, please set your password by clicking the button below:</p>
                 <div class="card">
-                    <a href="' . $resetUrl . '" class="btn">Set Your Password</a>
+                    <a href="' . $resetUrl . '" class="btn">Activate Your Account</a>
                 </div>
-                <p>This link will expire in 24 hours.</p>
+                <p>This activation link will expire in 24 hours.</p>
                 <div class="footer">
                     <p>If you did not expect this email, please ignore it.</p>
                 </div>
@@ -328,7 +344,12 @@ class User
         </html>
         ';
 
-        return Mail::send($this->getEmail(), $subject, $body);
+        $sent = Mail::send($this->getEmail(), $subject, $body);
+        if (!$sent) {
+            $db->query("DELETE FROM `password_reset_tokens` WHERE `id` = ?", [$tokenId]);
+        }
+
+        return $sent;
     }
 
 }

@@ -144,11 +144,11 @@ switch($action) {
         }
 
         $username  = trim($_POST['username'] ?? '');
-        $password  = $_POST['password'] ?? '';
         $email     = trim($_POST['email'] ?? '');
         $nameShort = trim($_POST['nameShort'] ?? '') ?: null;
         $nameFirst = trim($_POST['nameFirst'] ?? '') ?: null;
         $nameLast  = trim($_POST['nameLast'] ?? '') ?: null;
+        $sendWelcomeEmail = filter_var($_POST['sendWelcomeEmail'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         if($username === '' || $email === ''){
             http_response_code(400);
@@ -157,7 +157,8 @@ switch($action) {
         }
 
         try {
-            $user = User::CreateUser($username, $password, $email, $nameShort, $nameFirst, $nameLast);
+            // New accounts always set their password through the activation flow.
+            $user = User::CreateUser($username, '', $email, $nameShort, $nameFirst, $nameLast);
 
             // Set instruments if provided and user has edit permission
             $instrumentIds = $_POST['instrumentIds'] ?? [];
@@ -193,8 +194,19 @@ switch($action) {
                 }
             }
 
+            $response = ['id' => $user->getIdUser(), 'welcomeEmailSent' => false];
+            if ($sendWelcomeEmail) {
+                if (!User::isSmtpConfigured()) {
+                    $response['warning'] = 'User created, but the welcome email was not sent because SMTP is not configured.';
+                } elseif ($user->sendWelcomeEmail()) {
+                    $response['welcomeEmailSent'] = true;
+                } else {
+                    $response['warning'] = 'User created, but the welcome email could not be sent. Check SMTP configuration.';
+                }
+            }
+
             http_response_code(200);
-            echo json_encode(['id' => $user->getIdUser()]);
+            echo json_encode($response);
         } catch (Exception $e) {
             $msg = $e->getMessage();
             if (stripos($msg, 'Duplicate entry') !== false) {
@@ -339,6 +351,11 @@ switch($action) {
 
         try {
             $user = new User($idUser);
+            if (!User::isSmtpConfigured()) {
+                http_response_code(400);
+                echo json_encode(['message' => 'SMTP is not configured. Configure it in Site Management before sending a welcome email.']);
+                exit;
+            }
             $sent = $user->sendWelcomeEmail();
             if ($sent) {
                 http_response_code(200);
