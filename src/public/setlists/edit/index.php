@@ -54,8 +54,8 @@ $grandTotal = setlistTotalSecs($sets);
             flex-shrink: 0;
             display: flex;
             flex-direction: column;
-            border-right: 1px solid #dee2e6;
-            background: #f8f9fa;
+            border-right: 1px solid var(--bs-border-color);
+            background: var(--bs-tertiary-bg);
         }
         #chartPanelList {
             overflow-y: auto;
@@ -63,8 +63,8 @@ $grandTotal = setlistTotalSecs($sets);
             padding: 8px;
         }
         .chart-panel-item {
-            background: #fff;
-            border: 1px solid #dee2e6;
+            background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color);
             border-radius: 6px;
             padding: 8px 10px;
             margin-bottom: 6px;
@@ -83,8 +83,8 @@ $grandTotal = setlistTotalSecs($sets);
         }
         #setsPanelHeader {
             padding: 10px 16px;
-            border-bottom: 1px solid #dee2e6;
-            background: #fff;
+            border-bottom: 1px solid var(--bs-border-color);
+            background: var(--bs-body-bg);
             flex-shrink: 0;
         }
         #setsScroll {
@@ -100,18 +100,18 @@ $grandTotal = setlistTotalSecs($sets);
 
         /* ── Individual set cards ───────────────── */
         .set-card {
-            background: #fff;
-            border: 1px solid #dee2e6;
+            background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color);
             border-radius: 8px;
             overflow: hidden;
         }
         .set-card-header {
-            background: #f1f3f5;
+            background: var(--bs-secondary-bg);
             padding: 8px 12px;
             display: flex;
             align-items: center;
             gap: 8px;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid var(--bs-border-color);
         }
         .drag-set-handle {
             cursor: grab;
@@ -145,8 +145,8 @@ $grandTotal = setlistTotalSecs($sets);
             align-items: center;
             gap: 8px;
             padding: 6px 8px;
-            background: #fff;
-            border: 1px solid #dee2e6;
+            background: var(--bs-body-bg);
+            border: 1px solid var(--bs-border-color);
             border-radius: 6px;
             margin-bottom: 5px;
             user-select: none;
@@ -161,7 +161,7 @@ $grandTotal = setlistTotalSecs($sets);
         .set-chart-item .chart-name { font-weight: 600; font-size: 0.88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .set-chart-item .chart-meta { font-size: 0.75rem; color: #6c757d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .set-chart-item .remove-btn  { flex-shrink: 0; }
-        .set-chart-item.sortable-ghost { opacity: 0.4; background: #cfe2ff; }
+        .set-chart-item.sortable-ghost { opacity: 0.4; background: var(--bs-primary-bg-subtle); }
     </style>
 </head>
 <body>
@@ -170,7 +170,7 @@ $grandTotal = setlistTotalSecs($sets);
     <div id="editorWrap">
         <!-- ── Left Panel: All Charts ─────────────────────────────── -->
         <div id="chartPanel">
-            <div class="p-2 border-bottom bg-white">
+            <div class="p-2 border-bottom bg-body">
                 <div class="fw-semibold mb-1 small text-muted text-uppercase">Charts Library</div>
                 <input type="text" id="chartSearch" class="form-control form-control-sm" placeholder="Search charts…">
             </div>
@@ -328,7 +328,8 @@ function transformToSetItem(el) {
     const fDur = formatDur(dur);
     if (fDur)        metaParts.push(fDur);
 
-    el.className = 'set-chart-item';
+    el.classList.remove('chart-panel-item');
+    el.classList.add('set-chart-item');
     el.innerHTML = `
         <i class="bi bi-grip-vertical drag-handle"></i>
         <div class="chart-info">
@@ -341,10 +342,13 @@ function transformToSetItem(el) {
     `;
 }
 
+const SETLIST_CHART_GROUP = 'setlist-charts';
+
 // ── Initialise SortableJS on a set's chart list ───────────────────────────────
 function initSetSortable(listEl) {
     return new Sortable(listEl, {
-        group:     'setlist-charts',
+        group:     {name: SETLIST_CHART_GROUP, pull: true, put: true},
+        draggable: '.set-chart-item',
         animation: 150,
         handle:    '.drag-handle',
         ghostClass: 'sortable-ghost',
@@ -419,10 +423,14 @@ $.ajax({
 
         // Sortable on panel (clone-only source)
         new Sortable(list, {
-            group:     {name: 'setlist-charts', pull: 'clone', put: false},
+            group:     {name: SETLIST_CHART_GROUP, pull: 'clone', put: false},
+            draggable: '.chart-panel-item',
             sort:      false,
             animation: 150,
-            ghostClass: 'sortable-chosen'
+            ghostClass: 'sortable-chosen',
+            onClone: function(evt) {
+                transformToSetItem(evt.clone);
+            }
         });
 
         // Client-side search filter

@@ -107,24 +107,29 @@ function generateSetlistPdf(Setlist $setlist, ?string $outputPath = null): strin
             $dur = fmtDur($c['duration']);
 
             $cats = $categoriesByChart[$c['idChart']] ?? [];
-            $catStr = '';
+            $catNames = [];
             foreach ($cats as $cat) {
-                $catName = $cat['categoryName'];
-                $catColour = $cat['categoryColour'];
-                if ($catColour) {
-                    $r = hexdec(substr($catColour, 1, 2));
-                    $g = hexdec(substr($catColour, 3, 2));
-                    $b = hexdec(substr($catColour, 5, 2));
-                    $pdf->SetFillColor($r, $g, $b);
-                    $catStr .= $catName . ' ';
-                } else {
-                    $catStr .= $catName . ' ';
-                }
+                $catNames[] = $cat['categoryName'];
             }
-            $catStr = trim($catStr);
+            $catStr = implode(' ', $catNames);
 
-            $fill = ($idx % 2 === 0);
-            $pdf->SetFillColor($fill ? 255 : 248, $fill ? 255 : 248, $fill ? 255 : 248);
+            $fill = ($idx % 2 === 0) ? 255 : 248;
+            $rowColour = [$fill, $fill, $fill];
+            $textColour = [0, 0, 0];
+            $firstCategoryColour = $cats[0]['categoryColour'] ?? null;
+
+            if (is_string($firstCategoryColour) && preg_match('/^#[0-9A-Fa-f]{6}$/', $firstCategoryColour)) {
+                $rowColour = [
+                    hexdec(substr($firstCategoryColour, 1, 2)),
+                    hexdec(substr($firstCategoryColour, 3, 2)),
+                    hexdec(substr($firstCategoryColour, 5, 2)),
+                ];
+                $luminance = (0.299 * $rowColour[0]) + (0.587 * $rowColour[1]) + (0.114 * $rowColour[2]);
+                $textColour = $luminance < 150 ? [255, 255, 255] : [0, 0, 0];
+            }
+
+            $pdf->SetFillColor(...$rowColour);
+            $pdf->SetTextColor(...$textColour);
             $pdf->SetX($offsetX);
             $pdf->Cell($colW[0], 6, (string)($idx + 1), 1, 0, 'C', true);
             $pdf->Cell($colW[1], 6, $c['chartName'], 1, 0, 'L', true);
@@ -141,6 +146,7 @@ function generateSetlistPdf(Setlist $setlist, ?string $outputPath = null): strin
                 $pdf->Ln();
             }
             $pdf->SetFillColor(255, 255, 255);
+            $pdf->SetTextColor(0, 0, 0);
         }
 
         if ($setTotal > 0) {
