@@ -123,7 +123,6 @@ BandBinder/
 ├── src/
 │   ├── db/
 │   │   ├── migrate.php             # Migration runner
-│   │   ├── schema-latest.sql       # Auto-generated schema snapshot
 │   │   └── migration/              # Numbered SQL migration files
 │   ├── lib/
 │   │   ├── class/                  # PHP classes (Chart, User, Setlist, …)

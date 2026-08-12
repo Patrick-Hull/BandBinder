@@ -8,33 +8,21 @@
  * 2. Scans src/db/migration/ for .sql files (format: 1-name.sql, 2-name.sql, etc.)
  * 3. Executes only new migrations in numerical order
  * 4. Tracks executed migrations in the migrations table
- * 5. Generates a schema dump to src/db/schema-latest.sql after completion
  *
  * Usage: php src/db/migrate.php
  */
 
 require_once __DIR__ . '/../lib/class/DatabaseManager.php';
 
-/**
- * Helper function to check if a command exists
- */
-function command_exists($cmd): bool
-{
-    $return = shell_exec(sprintf("which %s 2>/dev/null", escapeshellarg($cmd)));
-    return !empty($return);
-}
-
 class DatabaseMigrator
 {
     private DatabaseManager $db;
     private string $migrationDir;
-    private string $schemaFile;
 
     public function __construct()
     {
         $this->db = new DatabaseManager();
         $this->migrationDir = __DIR__ . '/migration';
-        $this->schemaFile = __DIR__ . '/schema-latest.sql';
     }
 
     /**
@@ -69,9 +57,6 @@ class DatabaseMigrator
                 $this->executeMigration($file);
             }
         }
-
-        // Generate schema dump
-        $this->generateSchemaDump();
 
         echo "\n✓ Migration completed successfully!\n";
     }
@@ -196,58 +181,6 @@ class DatabaseMigrator
         }
     }
 
-    /**
-     * Generate a schema dump of the current database
-     */
-    private function generateSchemaDump(): void
-    {
-        echo "\nGenerating schema dump...";
-
-        try {
-            // Get database connection details
-            $host = getenv('DB_HOST') ?: 'mysql';
-            $dbname = getenv('DB_NAME') ?: 'jazz_blues_club';
-            $user = getenv('DB_USER') ?: 'root';
-            $pass = getenv('DB_PASS') ?: 'root';
-
-            // Use mysqldump or mariadb-dump to generate schema
-            $dumpCommand = command_exists('mysqldump') ? 'mysqldump' : 'mariadb-dump';
-            $command = sprintf(
-                '%s -h %s -u %s -p%s --no-data --skip-comments --skip-ssl --no-tablespaces %s > %s 2>&1',
-                $dumpCommand,
-                escapeshellarg($host),
-                escapeshellarg($user),
-                escapeshellarg($pass),
-                escapeshellarg($dbname),
-                escapeshellarg($this->schemaFile)
-            );
-
-            exec($command, $output, $returnCode);
-            echo "\nCommand executed:\n$command\n";
-            echo "Return code: $returnCode\n";
-            echo "Output:\n" . implode("\n", $output) . "\n";
-            if ($returnCode === 0 && file_exists($this->schemaFile)) {
-                echo " [SUCCESS]\n";
-            } else {
-                echo " [FAILED or WARNING]\n";
-            }
-
-            /*
-            if ($returnCode === 0 && file_exists($this->schemaFile)) {
-                echo " [SUCCESS]\n";
-                echo "Schema saved to: {$this->schemaFile}\n";
-            } else {
-                echo " [WARNING]\n";
-                echo "Could not generate schema dump (mysqldump may not be available)\n";
-                echo "This is normal when running inside a PHP container without mysql-client.\n";
-                echo "Schema dump will be available when running from a container with mysql-client installed.\n";
-            }
-            */
-        } catch (Exception $e) {
-            echo " [WARNING]\n";
-            echo "Schema dump skipped: " . $e->getMessage() . "\n";
-        }
-    }
 }
 
 // Run the migration
