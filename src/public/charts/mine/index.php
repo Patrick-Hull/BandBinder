@@ -211,7 +211,13 @@ if (!in_array('charts.view', $_SESSION['user']['permissions'])) {
                         }
                     },
                     columns: [
-                        {data: 'chartName',    title: 'Name'},
+                        {data: 'chartName',    title: 'Name', render: function(d, t, row) {
+                            var name = escHtml(d);
+                            if (row.isFullPdf) {
+                                name += ' <span class="badge text-bg-info ms-1" title="No individual part is assigned to your instruments.">Full PDF</span>';
+                            }
+                            return name;
+                        }},
                         {data: 'artistName',   title: 'Artist'},
                         {data: 'arrangerName', title: 'Arranger'},
                         {data: 'chartKey',     title: 'Key'},
